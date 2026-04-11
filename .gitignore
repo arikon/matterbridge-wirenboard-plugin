@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.cache/
+coverage/
+npm-shrinkwrap.json
