@@ -163,20 +163,39 @@ Types without a Matter equivalent (`text`, `enum` without override, `sound_level
 | Color lights (RGB) | Yes | Yes | Yes | Yes |
 | Temperature sensors | Yes | Yes | Yes | Yes |
 | Humidity sensors | Yes | Yes | Yes | Yes |
-| Pressure sensors | Yes | Limited | No | Limited |
-| Air quality sensors | Yes | Limited | No | Limited |
+| Pressure sensors | Partial¹ | Yes | No | Yes |
+| Air quality sensors | Yes | Yes | Yes | Yes |
 | Electrical sensors | No | No | No | No |
-| Flow sensors | No | No | No | No |
+| Flow sensors | No | Yes | No | Yes |
 | Occupancy sensors | Yes | Yes | Yes | Yes |
 | Contact sensors | Yes | Yes | Yes | Yes |
-| Smoke/CO alarms | Yes | Yes | Yes | Yes |
-| Water leak detectors | Yes | Yes | Yes | Yes |
+| Smoke/CO alarms | Yes² | Partial³ | Yes | Yes |
+| Water leak detectors | Yes² | No | No | Yes |
+| Water valve | Partial⁴ | No | No | Yes |
 | Window coverings | Yes | Yes | Yes | Yes |
+| Door locks | Yes | Yes | Yes | Yes |
+| Fan control | Yes | Yes | Yes | Yes |
 | Thermostats | Yes | Yes | Yes | Yes |
-| Generic switch (pushbutton) | Limited | No | No | Limited |
-| Max bridged endpoints | ~150 | ~200 | ~200 | ~200 |
+| Pump | No | Yes | No | Yes |
+| Generic switch (pushbutton) | Yes⁵ | Partial | Yes | Yes |
+| Max bridged endpoints | **150** | ~250 | **50** | ~50 |
 
-Apple Home does not support electrical measurement clusters. Generic switches (pushbutton) have limited support across ecosystems.
+¹ Pressure: Apple Home has no dedicated UI tile but automations work.
+² Requires iOS 18.4+.
+³ Google Home: full support for Nest Protect; partial for third-party Matter smoke alarms.
+⁴ Water valve pairs but has no native Apple Home UI; works via automations.
+⁵ Improved in iOS 18.2 (moved to Home View).
+
+**Alexa hard limit: 50 bridged devices.** Use whitelist/blacklist to stay within the limit. Apple Home limit is 150 (149 + bridge). Electrical sensors and rain/freeze detectors are not supported by any major controller.
+
+Sources:
+- [Apple Home — Matter accessories](https://support.apple.com/en-us/102135)
+- [Apple Home — iOS 18.4 smoke/CO/water leak](https://www.matteralpha.com/manufacturer-news/ios-18-4-expands-matter-support-with-smoke-co-and-water-leak-sensors)
+- [Google Home — Supported Matter device types](https://developers.home.google.com/matter/supported-devices)
+- [Amazon Alexa — Supported Matter device categories](https://developer.amazon.com/en-US/docs/alexa/smarthome/supported-matter-device-categories.html)
+- [Samsung SmartThings — Matter support](https://partners.smartthings.com/matter)
+- [Matterbridge — Controller limits and compatibility](https://matterbridge.io/README.html)
+- Bridge endpoint limits: [1Home — Alexa (50 hard limit)](https://www.1home.io/docs/en/server/matter-bridge/apps/amazon-alexa), [1Home — Google Home (~250)](https://www.1home.io/docs/en/server/matter-bridge/apps/google-home), [1Home — SmartThings (~50)](https://www.1home.io/docs/en/server/matter-bridge/apps/samsung-smartthings), [Apple Home 150 limit (community)](https://community.hubitat.com/t/apple-homekit-150-device-limit/145073)
 
 ## Grouping Modes
 
