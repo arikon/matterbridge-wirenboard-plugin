@@ -125,23 +125,42 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
 
     this.shouldStart = true;
 
-    // Discovery: idle-based waiter
-    const idleMs = (this.config['discoveryIdleMs'] as number | undefined) ?? 1000;
     const maxTimeout = ((this.config['discoveryTimeout'] as number | undefined) ?? 30) * 1000;
 
-    const ok = await waiter(
-      'WB discovery',
-      () => this.deviceMap.size > 0 && Date.now() - this.lastMetaTimestamp > idleMs,
-      false,
-      maxTimeout,
-      200,
-      false,
-    );
+    if (this.config['discoveryMode'] === 'static' && Array.isArray(this.config['devices'])) {
+      // Static mode: wait for each named device to appear in deviceMap
+      const deviceNames = this.config['devices'] as string[];
+      for (const deviceName of deviceNames) {
+        const ok = await waiter(
+          `device ${deviceName}`,
+          () => this.deviceMap.has(deviceName),
+          false,
+          maxTimeout,
+          500,
+          false,
+        );
+        if (!ok) {
+          this.log.warn(`Static discovery: timeout waiting for device '${deviceName}'`);
+        }
+      }
+    } else {
+      // Auto mode: idle-based waiter
+      const idleMs = (this.config['discoveryIdleMs'] as number | undefined) ?? 1000;
 
-    if (!ok) {
-      this.log.warn(
-        `Discovery timeout after ${maxTimeout}ms. Registering ${this.deviceMap.size} devices found so far.`,
+      const ok = await waiter(
+        'WB discovery',
+        () => this.deviceMap.size > 0 && Date.now() - this.lastMetaTimestamp > idleMs,
+        false,
+        maxTimeout,
+        200,
+        false,
       );
+
+      if (!ok) {
+        this.log.warn(
+          `Discovery timeout after ${maxTimeout}ms. Registering ${this.deviceMap.size} devices found so far.`,
+        );
+      }
     }
 
     await this.registerDiscoveredDevices();
@@ -305,11 +324,15 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       return;
     }
 
+    // Determine dominant type for Matterbridge UI label
+    const dominantType = this.getDominantType(wbDevice);
+
     const mqttHost = (this.config['mqttHost'] as string | undefined) ?? 'localhost';
 
     // Register all endpoints
     for (const endpoint of wbDev.endpoints) {
       endpoint.configUrl = `http://${mqttHost}`;
+      await endpoint.addFixedLabel('composed', dominantType);
 
       // Warn about device types unsupported in Apple Home
       const appleUnsupported = [
@@ -440,10 +463,19 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     }
 
     // Flag 'r' = read error → unreachable
-    const hasReadError = evt.error.includes('r');
-    const wbDev = this.wbDevices.get(evt.deviceName);
-    if (wbDev) {
-      wbDev.setReachable(!hasReadError);
+    if (evt.error.includes('r')) {
+      const wbDev = this.wbDevices.get(evt.deviceName);
+      if (wbDev) {
+        wbDev.setReachable(false);
+      }
+    }
+    // Flag 'w' = write error → log warning only
+    if (evt.error.includes('w')) {
+      this.log.warn(`Write error on ${evt.deviceName}/${evt.controlName}`);
+    }
+    // Flag 'p' = poll miss → log debug only
+    if (evt.error.includes('p')) {
+      this.log.debug(`Poll miss on ${evt.deviceName}/${evt.controlName}`);
     }
   }
 
@@ -487,6 +519,41 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
   // ---------------------------------------------------------------------------
   // Reachability helper (for direct endpoint access when WirenboardDevice not yet created)
   // ---------------------------------------------------------------------------
+
+  /**
+   * Determine the dominant Matter device type for a WB device based on control counts.
+   * Returns a UI label string: 'Light', 'Switch', 'Sensor', 'Cover', or 'Climate'.
+   */
+  private getDominantType(wbDevice: WbDevice): string {
+    const counts = { Light: 0, Switch: 0, Sensor: 0, Cover: 0, Climate: 0 };
+
+    for (const [, ctrl] of wbDevice.controls) {
+      const mapping = findMapping(ctrl.meta, ctrl.name);
+      if (!mapping) continue;
+      const typeName = mapping.matterDeviceType.name?.toLowerCase() ?? '';
+      if (typeName.includes('light') || typeName.includes('dimm') || typeName.includes('color')) {
+        counts.Light++;
+      } else if (typeName.includes('cover') || typeName.includes('window')) {
+        counts.Cover++;
+      } else if (typeName.includes('thermostat') || typeName.includes('fan')) {
+        counts.Climate++;
+      } else if (typeName.includes('sensor') || typeName.includes('air') || typeName.includes('humidity') || typeName.includes('temp')) {
+        counts.Sensor++;
+      } else {
+        counts.Switch++;
+      }
+    }
+
+    let dominant: string = 'Switch';
+    let max = 0;
+    for (const [type, count] of Object.entries(counts)) {
+      if (count > max) {
+        max = count;
+        dominant = type;
+      }
+    }
+    return dominant;
+  }
 
   private setEndpointReachable(endpoint: MatterbridgeEndpoint, reachable: boolean): void {
     if (endpoint.maybeNumber !== undefined) {

@@ -275,19 +275,62 @@ describe('retained-messages.json replay', () => {
       mqtt.messageHandler(msg.topic, msg.payload);
     }
 
-    // Three devices discovered
+    // Three original devices discovered
     expect(deviceMetas).toContain('wb-mr6c_28');
     expect(deviceMetas).toContain('wb-msw-v3_42');
     expect(deviceMetas).toContain('wb-mdm3_07');
+
+    // New mock devices discovered
+    expect(deviceMetas).toContain('wb-led_01');
+    expect(deviceMetas).toContain('wb-therm_05');
 
     // Controls meta parsed
     expect(controlMetas).toContain('wb-mr6c_28/K1');
     expect(controlMetas).toContain('wb-msw-v3_42/Temperature');
     expect(controlMetas).toContain('wb-mdm3_07/Channel 1');
 
+    // RGB control meta parsed
+    expect(controlMetas).toContain('wb-led_01/RGB');
+
+    // Thermostat controls meta parsed
+    expect(controlMetas).toContain('wb-therm_05/temperature');
+    expect(controlMetas).toContain('wb-therm_05/setpoint');
+    expect(controlMetas).toContain('wb-therm_05/mode');
+
     // Control values received
     expect(controlValues).toContain('wb-mr6c_28/K1=1');
     expect(controlValues).toContain('wb-msw-v3_42/CO2=850');
     expect(controlValues).toContain('wb-mdm3_07/Channel 1=128');
+
+    // RGB value received
+    expect(controlValues).toContain('wb-led_01/RGB=128;0;255');
+
+    // Thermostat values received
+    expect(controlValues).toContain('wb-therm_05/temperature=22.5');
+    expect(controlValues).toContain('wb-therm_05/setpoint=21.0');
+    expect(controlValues).toContain('wb-therm_05/mode=heat');
+  });
+
+  it('parses RGB control meta with type rgb', () => {
+    const mqtt = createMqtt();
+    const received: ControlMetaEvent[] = [];
+    mqtt.on('control-meta', (evt: ControlMetaEvent) => received.push(evt));
+
+    mqtt.messageHandler('/devices/wb-led_01/controls/RGB/meta', '{"type":"rgb","order":1,"readonly":false}');
+
+    expect(received).toHaveLength(1);
+    expect(received[0]!.meta.type).toBe('rgb');
+  });
+
+  it('parses thermostat setpoint control meta with units deg C', () => {
+    const mqtt = createMqtt();
+    const received: ControlMetaEvent[] = [];
+    mqtt.on('control-meta', (evt: ControlMetaEvent) => received.push(evt));
+
+    mqtt.messageHandler('/devices/wb-therm_05/controls/setpoint/meta', '{"type":"range","units":"deg C","min":5,"max":35,"order":2,"readonly":false}');
+
+    expect(received).toHaveLength(1);
+    expect(received[0]!.meta.type).toBe('range');
+    expect(received[0]!.meta.units).toBe('deg C');
   });
 });

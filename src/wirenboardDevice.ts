@@ -301,14 +301,18 @@ export class WirenboardDevice {
       const hasCool = !!coolSetpoint;
       const hasAutoMode = modeControl !== undefined;
 
+      let thermostatType: 'heating' | 'cooling' | 'auto';
       if (hasHeat && !hasCool && !hasAutoMode) {
         // HeatingOnly
+        thermostatType = 'heating';
         tEndpoint.createDefaultHeatingThermostatClusterServer(undefined, undefined, minHeat * 100, maxHeat * 100);
       } else if (!hasHeat && hasCool && !hasAutoMode) {
         // CoolingOnly
+        thermostatType = 'cooling';
         tEndpoint.createDefaultCoolingThermostatClusterServer(undefined, undefined, minCool * 100, maxCool * 100);
       } else {
         // CoolingAndHeating (auto or both setpoints)
+        thermostatType = 'auto';
         tEndpoint.createDefaultThermostatClusterServer(
           undefined, undefined, undefined, undefined,
           minHeat * 100, maxHeat * 100, minCool * 100, maxCool * 100,
@@ -405,6 +409,17 @@ export class WirenboardDevice {
         });
       }
 
+      // For HeatingOnly/CoolingOnly: remove running_state/running_mode from propertyMap
+      // These attributes are only supported in AutoMode (CoolingAndHeating)
+      if (thermostatType !== 'auto') {
+        for (const [key] of self.propertyMap) {
+          const lower = key.toLowerCase();
+          if (lower.includes('running')) {
+            self.propertyMap.delete(key);
+          }
+        }
+      }
+
       // Add thermostat command handlers
       self.addThermostatCommandHandlers(tEndpoint, deviceName, heatSetpoint?.name, coolSetpoint?.name, modeControl?.name);
 
@@ -441,6 +456,11 @@ export class WirenboardDevice {
     }
 
     // Step 4: Build endpoints based on groupingMode
+    if (mappableControls.length === 0 && self.endpoints.length === 0) {
+      log.info(`Device ${deviceName} has no mappable controls — skipping registration`);
+      return self;
+    }
+
     if (groupingMode === 'device') {
       await self.buildDeviceGrouping(
         mappableControls,

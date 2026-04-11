@@ -35,5 +35,17 @@
   { "topic": "/devices/wb-mdm3_07/controls/Channel 2/meta",                       "payload": "{\"type\":\"range\",\"min\":0,\"max\":255,\"order\":2,\"readonly\":false}" },
   { "topic": "/devices/wb-mdm3_07/controls/Channel 2",                            "payload": "0" },
   { "topic": "/devices/wb-mdm3_07/controls/Channel 3/meta",                       "payload": "{\"type\":\"range\",\"min\":0,\"max\":255,\"order\":3,\"readonly\":false}" },
-  { "topic": "/devices/wb-mdm3_07/controls/Channel 3",                            "payload": "255" }
+  { "topic": "/devices/wb-mdm3_07/controls/Channel 3",                            "payload": "255" },
+
+  { "topic": "/devices/wb-led_01/meta",                                           "payload": "{\"driver\":\"wb-led\",\"title\":{\"en\":\"WB-LED 01\",\"ru\":\"WB-LED 01\"}}" },
+  { "topic": "/devices/wb-led_01/controls/RGB/meta",                              "payload": "{\"type\":\"rgb\",\"order\":1,\"readonly\":false}" },
+  { "topic": "/devices/wb-led_01/controls/RGB",                                   "payload": "128;0;255" },
+
+  { "topic": "/devices/wb-therm_05/meta",                                         "payload": "{\"driver\":\"wb-therm\",\"title\":{\"en\":\"WB-Therm 05\",\"ru\":\"WB-Therm 05\"}}" },
+  { "topic": "/devices/wb-therm_05/controls/temperature/meta",                    "payload": "{\"type\":\"value\",\"units\":\"deg C\",\"order\":1,\"readonly\":true}" },
+  { "topic": "/devices/wb-therm_05/controls/temperature",                         "payload": "22.5" },
+  { "topic": "/devices/wb-therm_05/controls/setpoint/meta",                       "payload": "{\"type\":\"range\",\"units\":\"deg C\",\"min\":5,\"max\":35,\"order\":2,\"readonly\":false}" },
+  { "topic": "/devices/wb-therm_05/controls/setpoint",                            "payload": "21.0" },
+  { "topic": "/devices/wb-therm_05/controls/mode/meta",                           "payload": "{\"type\":\"enum\",\"order\":3,\"readonly\":false,\"enum\":[\"off\",\"heat\",\"cool\",\"auto\"]}" },
+  { "topic": "/devices/wb-therm_05/controls/mode",                                "payload": "heat" }
 ]

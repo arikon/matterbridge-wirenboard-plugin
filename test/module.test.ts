@@ -78,9 +78,11 @@ jest.unstable_mockModule('matterbridge', () => {
       const ep: Record<string, unknown> = {
         id: opts?.id ?? 'mock',
         maybeNumber: 1,
+        configUrl: '',
         deviceType: _type,
         setAttribute: jest.fn(),
         triggerEvent: jest.fn(),
+        addFixedLabel: jest.fn(async function() { return ep; }),
         hasClusterServer: jest.fn(() => true),
         addRequiredClusterServers: jest.fn(function() { return ep; }),
         addCommandHandler: jest.fn(function() { return ep; }),
@@ -92,8 +94,10 @@ jest.unstable_mockModule('matterbridge', () => {
           const child: Record<string, unknown> = {
             id: childId,
             maybeNumber: 1,
+            configUrl: '',
             setAttribute: jest.fn(),
             triggerEvent: jest.fn(),
+            addFixedLabel: jest.fn(async function() { return child; }),
             hasClusterServer: jest.fn(() => true),
             addRequiredClusterServers: jest.fn(function() { return child; }),
             addCommandHandler: jest.fn(function() { return child; }),
