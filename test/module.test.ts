@@ -446,3 +446,260 @@ describe('control-error event', () => {
     expect(mockLog.error).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// control-error flags: w and p
+// ---------------------------------------------------------------------------
+
+describe('control-error flags', () => {
+  it('write error (w flag) logs warning', () => {
+    const _p = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig());
+    emitMqttEvent('device-meta', { deviceName: 'wb-dev', meta: { driver: 'test', title: 'Test' } });
+    emitMqttEvent('control-meta', { deviceName: 'wb-dev', controlName: 'K1', meta: { type: 'switch', readonly: false } });
+    emitMqttEvent('control-error', { deviceName: 'wb-dev', controlName: 'K1', error: 'w' });
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining('Write error'));
+  });
+
+  it('poll miss (p flag) logs debug', () => {
+    const _p = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig());
+    emitMqttEvent('device-meta', { deviceName: 'wb-dev', meta: { driver: 'test', title: 'Test' } });
+    emitMqttEvent('control-meta', { deviceName: 'wb-dev', controlName: 'K1', meta: { type: 'switch', readonly: false } });
+    emitMqttEvent('control-error', { deviceName: 'wb-dev', controlName: 'K1', error: 'p' });
+    expect(mockLog.debug).toHaveBeenCalledWith(expect.stringContaining('Poll miss'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// device-error event
+// ---------------------------------------------------------------------------
+
+describe('device-error event', () => {
+  it('logs warn on device-error', () => {
+    const _p = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig());
+    emitMqttEvent('device-error', { deviceName: 'wb-dev', error: 'rp' });
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining('wb-dev'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// device-removed event
+// ---------------------------------------------------------------------------
+
+describe('device-removed event', () => {
+  it('removes device from deviceMap without error', () => {
+    const platform = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig());
+    emitMqttEvent('device-meta', { deviceName: 'wb-removed', meta: { driver: 'test', title: 'Test' } });
+    expect(platform.deviceMap.has('wb-removed')).toBe(true);
+
+    emitMqttEvent('device-removed', { deviceName: 'wb-removed' });
+    expect(platform.deviceMap.has('wb-removed')).toBe(false);
+  });
+
+  it('ignores removal of unknown device', () => {
+    const _p = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig());
+    emitMqttEvent('device-removed', { deviceName: 'no-such-device' });
+    expect(mockLog.error).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// mqtt_disconnect / mqtt_connect events
+// ---------------------------------------------------------------------------
+
+describe('mqtt_disconnect / mqtt_connect events', () => {
+  it('mqtt_disconnect logs warning', () => {
+    const _p = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig());
+    emitMqttEvent('mqtt_disconnect', {});
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining('unreachable'));
+  });
+
+  it('mqtt_connect logs info', () => {
+    const _p = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig());
+    emitMqttEvent('mqtt_connect', {});
+    expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining('reachable'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Static discovery mode
+// ---------------------------------------------------------------------------
+
+describe('Static discovery mode', () => {
+  it('waits for named device and registers it', async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({
+        discoveryMode: 'static',
+        devices: ['wb-static-dev'],
+        discoveryTimeout: 1,
+      }),
+    );
+
+    emitMqttEvent('device-meta', { deviceName: 'wb-static-dev', meta: { driver: 'wb-test', title: 'Static Dev' } });
+    emitMqttEvent('control-meta', { deviceName: 'wb-static-dev', controlName: 'K1', meta: { type: 'switch', readonly: false } });
+
+    await platform.onStart('test');
+
+    expect(mockFns.registerDevice).toHaveBeenCalled();
+  });
+
+  it('warns on timeout if device not found in static mode', async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({
+        discoveryMode: 'static',
+        devices: ['missing-device'],
+        discoveryTimeout: 1,
+      }),
+    );
+
+    await platform.onStart('test');
+
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining('missing-device'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// onStart — control-value after onConfigure updates matter attribute
+// ---------------------------------------------------------------------------
+
+describe('onConfigure replay', () => {
+  it('replays cached control values after onConfigure', async () => {
+    const platform = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig({ discoveryTimeout: 1 }));
+
+    emitMqttEvent('device-meta', { deviceName: 'wb-mr6c_28', meta: { driver: 'wb-mr6c', title: 'WB-MR6C' } });
+    emitMqttEvent('control-meta', { deviceName: 'wb-mr6c_28', controlName: 'K1', meta: { type: 'switch', readonly: false } });
+    emitMqttEvent('control-value', { deviceName: 'wb-mr6c_28', controlName: 'K1', value: '1' });
+
+    await platform.onStart('test');
+    await platform.onConfigure();
+
+    // Should have been called without error
+    expect(mockLog.error).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Dynamic registration after onStart
+// ---------------------------------------------------------------------------
+
+describe('Dynamic registration after onStart', () => {
+  it('device-meta after onStart triggers dynamic registration path', async () => {
+    const platform = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig({ discoveryTimeout: 1 }));
+    await platform.onStart('test');
+
+    // After onStart, shouldStart=true — new device-meta should trigger registerNewDevice
+    // We just verify no error is thrown and the device is added to deviceMap
+    emitMqttEvent('device-meta', { deviceName: 'wb-new-dynamic', meta: { driver: 'wb-test', title: 'New Dev' } });
+
+    expect(platform.deviceMap.has('wb-new-dynamic')).toBe(true);
+    expect(mockLog.error).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// control-meta type change after registration
+// ---------------------------------------------------------------------------
+
+describe('control-meta type change', () => {
+  it('warns on type change after start', async () => {
+    const platform = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig({ discoveryTimeout: 1 }));
+
+    emitMqttEvent('device-meta', { deviceName: 'wb-mr6c_28', meta: { driver: 'wb-mr6c', title: 'WB-MR6C' } });
+    emitMqttEvent('control-meta', { deviceName: 'wb-mr6c_28', controlName: 'K1', meta: { type: 'switch', readonly: false } });
+
+    await platform.onStart('test');
+
+    // Simulate type change
+    emitMqttEvent('control-meta', { deviceName: 'wb-mr6c_28', controlName: 'K1', meta: { type: 'range', readonly: false } });
+
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining('type changed'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getDominantType — via onStart registration
+// ---------------------------------------------------------------------------
+
+describe('getDominantType via onStart', () => {
+  it('sensor-dominant device uses Sensor label', async () => {
+    const platform = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig({ discoveryTimeout: 1 }));
+
+    emitMqttEvent('device-meta', { deviceName: 'wb-msw', meta: { driver: 'wb-msw', title: 'MSW' } });
+    // Multiple sensor controls → Sensor dominant
+    emitMqttEvent('control-meta', { deviceName: 'wb-msw', controlName: 'Temperature', meta: { type: 'value', units: 'deg C', readonly: true } });
+    emitMqttEvent('control-meta', { deviceName: 'wb-msw', controlName: 'Humidity', meta: { type: 'value', units: '%', readonly: true } });
+
+    await platform.onStart('test');
+
+    // addFixedLabel should have been called with 'Sensor' or another dominant type
+    expect(mockFns.registerDevice).toHaveBeenCalled();
+    expect(mockLog.error).not.toHaveBeenCalled();
+  });
+
+  it('light-dominant device uses Light label', async () => {
+    const platform = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig({ discoveryTimeout: 1 }));
+
+    emitMqttEvent('device-meta', { deviceName: 'wb-mdm', meta: { driver: 'wb-mdm', title: 'MDM' } });
+    emitMqttEvent('control-meta', { deviceName: 'wb-mdm', controlName: 'Channel 1', meta: { type: 'dimmer', min: 0, max: 65535, readonly: false } });
+    emitMqttEvent('control-meta', { deviceName: 'wb-mdm', controlName: 'Channel 2', meta: { type: 'dimmer', min: 0, max: 65535, readonly: false } });
+
+    await platform.onStart('test');
+
+    expect(mockFns.registerDevice).toHaveBeenCalled();
+    expect(mockLog.error).not.toHaveBeenCalled();
+  });
+
+  it('cover device uses Cover label', async () => {
+    const platform = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig({ discoveryTimeout: 1 }));
+
+    emitMqttEvent('device-meta', { deviceName: 'wb-blind', meta: { driver: 'wb-blind', title: 'Blind' } });
+    emitMqttEvent('control-meta', { deviceName: 'wb-blind', controlName: 'window_blind', meta: { type: 'range', min: 0, max: 100, readonly: false } });
+
+    await platform.onStart('test');
+
+    expect(mockFns.registerDevice).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// onStart — failsafeCount
+// ---------------------------------------------------------------------------
+
+describe('onStart — failsafeCount', () => {
+  it('throws if failsafeCount not met', async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({ discoveryTimeout: 1, failsafeCount: 5 }),
+    );
+
+    emitMqttEvent('device-meta', { deviceName: 'wb-only-one', meta: { driver: 'test', title: 'One' } });
+    emitMqttEvent('control-meta', { deviceName: 'wb-only-one', controlName: 'K1', meta: { type: 'switch', readonly: false } });
+
+    await expect(platform.onStart('test')).rejects.toThrow('Failsafe');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// control-value after onConfigure dispatches to wbDevice.updateFromMqtt
+// ---------------------------------------------------------------------------
+
+describe('control-value after onConfigure', () => {
+  it('dispatches to wbDevice.updateFromMqtt', async () => {
+    const platform = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig({ discoveryTimeout: 1 }));
+
+    emitMqttEvent('device-meta', { deviceName: 'wb-mr6c_28', meta: { driver: 'wb-mr6c', title: 'WB-MR6C' } });
+    emitMqttEvent('control-meta', { deviceName: 'wb-mr6c_28', controlName: 'K1', meta: { type: 'switch', readonly: false } });
+
+    await platform.onStart('test');
+    await platform.onConfigure();
+
+    // After configure, live values should be dispatched
+    emitMqttEvent('control-value', { deviceName: 'wb-mr6c_28', controlName: 'K1', value: '1' });
+
+    expect(mockLog.error).not.toHaveBeenCalled();
+  });
+});

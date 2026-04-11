@@ -3,22 +3,55 @@
  * Uses mock retained-messages.json for integration-style parsing test.
  */
 
-import { describe, expect, it, jest, beforeEach } from '@jest/globals';
+import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
 import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
+// ---------------------------------------------------------------------------
+// Mock mqtt BEFORE importing WirenboardMqtt so start() tests can inject a fake client
+// ---------------------------------------------------------------------------
+
+// Shared fake client state for start() tests
+const fakeClientListeners: Map<string, Array<(...args: unknown[]) => void>> = new Map();
+const fakeSubscribeAsync = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+const fakeEndAsync = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+const fakePublishAsync = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+
+const fakeClient = {
+  on(event: string, handler: (...args: unknown[]) => void) {
+    const arr = fakeClientListeners.get(event) ?? [];
+    arr.push(handler);
+    fakeClientListeners.set(event, arr);
+  },
+  subscribeAsync: fakeSubscribeAsync,
+  endAsync: fakeEndAsync,
+  publishAsync: fakePublishAsync,
+};
+
+let useFakeClient = false;
+
+jest.unstable_mockModule('mqtt', () => ({
+  connectAsync: jest.fn(async () => {
+    if (useFakeClient) return fakeClient;
+    // For messageHandler tests that don't call start(), this is never reached
+    throw new Error('connectAsync called unexpectedly');
+  }),
+}));
+
+// ---------------------------------------------------------------------------
+// Import WirenboardMqtt AFTER mock registration
+// ---------------------------------------------------------------------------
+
 // We test messageHandler without a real MQTT connection.
 // Stub the AnsiLogger to avoid side-effects.
-import { WirenboardMqtt } from '../src/wirenboardMqtt.js';
-import type { AnsiLogger } from 'matterbridge/logger';
-import type {
-  DeviceMetaEvent,
-  ControlMetaEvent,
-  ControlValueEvent,
-  ControlErrorEvent,
-} from '../src/wirenboardMqtt.js';
+const { WirenboardMqtt } = await import('../src/wirenboardMqtt.js');
+
+type AnsiLogger = import('matterbridge/logger').AnsiLogger;
+type DeviceMetaEvent = import('../src/wirenboardMqtt.js').DeviceMetaEvent;
+type ControlMetaEvent = import('../src/wirenboardMqtt.js').ControlMetaEvent;
+type ControlValueEvent = import('../src/wirenboardMqtt.js').ControlValueEvent;
+type ControlErrorEvent = import('../src/wirenboardMqtt.js').ControlErrorEvent;
 
 // ---------------------------------------------------------------------------
 // Logger stub
@@ -332,5 +365,178 @@ describe('retained-messages.json replay', () => {
     expect(received).toHaveLength(1);
     expect(received[0]!.meta.type).toBe('range');
     expect(received[0]!.meta.units).toBe('deg C');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// start / stop / publish — using real start() with mocked connectAsync
+// ---------------------------------------------------------------------------
+
+/** Emit a fake client event after start() has wired listeners. */
+function emitFakeClientEvent(event: string, ...args: unknown[]): void {
+  const handlers = fakeClientListeners.get(event) ?? [];
+  for (const h of handlers) h(...args);
+}
+
+/** Reset shared fake client state before each start() test. */
+function resetFakeClient(): void {
+  fakeClientListeners.clear();
+  fakeSubscribeAsync.mockClear().mockResolvedValue(undefined);
+  fakeEndAsync.mockClear().mockResolvedValue(undefined);
+  fakePublishAsync.mockClear().mockResolvedValue(undefined);
+}
+
+describe('start() — real implementation via mocked connectAsync', () => {
+  beforeEach(() => {
+    resetFakeClient();
+    useFakeClient = true;
+    jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    useFakeClient = false;
+  });
+
+  it('subscribes to /devices/#', async () => {
+    const mqtt = createMqtt();
+    await mqtt.start();
+    expect(fakeSubscribeAsync).toHaveBeenCalledWith('/devices/#');
+  });
+
+  it('emits mqtt_connect on connect event', async () => {
+    const mqtt = createMqtt();
+    await mqtt.start();
+
+    const connects: unknown[] = [];
+    mqtt.on('mqtt_connect', () => connects.push(true));
+    emitFakeClientEvent('connect');
+
+    expect(connects).toHaveLength(1);
+  });
+
+  it('emits mqtt_disconnect on disconnect event', async () => {
+    const mqtt = createMqtt();
+    await mqtt.start();
+
+    const disconnects: unknown[] = [];
+    mqtt.on('mqtt_disconnect', () => disconnects.push(true));
+    emitFakeClientEvent('disconnect');
+
+    expect(disconnects).toHaveLength(1);
+  });
+
+  it('emits mqtt_disconnect on close when not ending', async () => {
+    const mqtt = createMqtt();
+    await mqtt.start();
+
+    const disconnects: unknown[] = [];
+    mqtt.on('mqtt_disconnect', () => disconnects.push(true));
+    emitFakeClientEvent('close');
+
+    expect(disconnects).toHaveLength(1);
+  });
+
+  it('does NOT emit mqtt_disconnect on close when isEnding=true', async () => {
+    const mqtt = createMqtt();
+    await mqtt.start();
+
+    const disconnects: unknown[] = [];
+    mqtt.on('mqtt_disconnect', () => disconnects.push(true));
+
+    // stop() sets isEnding = true
+    fakeEndAsync.mockImplementation(async () => {
+      emitFakeClientEvent('close');
+    });
+    await mqtt.stop();
+
+    expect(disconnects).toHaveLength(0);
+  });
+
+  it('logs error on error event', async () => {
+    const mqtt = createMqtt();
+    await mqtt.start();
+    emitFakeClientEvent('error', new Error('connection refused'));
+
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining('connection refused'));
+  });
+
+  it('reconnect event does not throw', async () => {
+    const mqtt = createMqtt();
+    await mqtt.start();
+    expect(() => emitFakeClientEvent('reconnect')).not.toThrow();
+  });
+
+  it('message event dispatches to messageHandler', async () => {
+    const mqtt = createMqtt();
+    await mqtt.start();
+
+    const received: ControlValueEvent[] = [];
+    mqtt.on('control-value', (evt: ControlValueEvent) => received.push(evt));
+
+    emitFakeClientEvent('message', '/devices/wb-dev/controls/K1', Buffer.from('1'));
+
+    expect(received).toHaveLength(1);
+    expect(received[0]!.value).toBe('1');
+  });
+});
+
+describe('stop() — real implementation', () => {
+  beforeEach(() => {
+    resetFakeClient();
+    useFakeClient = true;
+    jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    useFakeClient = false;
+  });
+
+  it('calls endAsync on client', async () => {
+    const mqtt = createMqtt();
+    await mqtt.start();
+    await mqtt.stop();
+    expect(fakeEndAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('stop() without start() does not throw', async () => {
+    const mqtt = createMqtt();
+    await expect(mqtt.stop()).resolves.not.toThrow();
+  });
+});
+
+describe('publish() — real implementation', () => {
+  beforeEach(() => {
+    resetFakeClient();
+    useFakeClient = true;
+    jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    useFakeClient = false;
+  });
+
+  it('sends to correct topic when connected', async () => {
+    const mqtt = createMqtt();
+    await mqtt.start();
+    emitFakeClientEvent('connect'); // sets isConnected = true
+
+    await mqtt.publish('wb-dev', 'K1', '1');
+
+    expect(fakePublishAsync).toHaveBeenCalledWith(
+      '/devices/wb-dev/controls/K1/on',
+      '1',
+      { retain: false },
+    );
+  });
+
+  it('warns and skips when not connected', async () => {
+    const mqtt = createMqtt();
+    await mqtt.start();
+    // No connect event → isConnected = false
+
+    await mqtt.publish('wb-dev', 'K1', '1');
+
+    expect(fakePublishAsync).not.toHaveBeenCalled();
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining('not connected'));
   });
 });
