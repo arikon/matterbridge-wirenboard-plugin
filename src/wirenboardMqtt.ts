@@ -60,6 +60,11 @@ export interface ControlErrorEvent {
   error: string;
 }
 
+export interface DeviceErrorEvent {
+  deviceName: string;
+  error: string;
+}
+
 // ---------------------------------------------------------------------------
 // Regex patterns for topic parsing
 // ---------------------------------------------------------------------------
@@ -212,7 +217,7 @@ export class WirenboardMqtt extends EventEmitter {
     m = RE_DEVICE_META_ERROR.exec(topic);
     if (m) {
       const deviceName = m[1]!;
-      this.emit('device-error', { deviceName, error: payload });
+      this.emit('device-error', { deviceName, error: payload } satisfies DeviceErrorEvent);
       return;
     }
 
@@ -224,6 +229,8 @@ export class WirenboardMqtt extends EventEmitter {
       const current = this.legacyDeviceMeta.get(deviceName) ?? {};
       if (field === 'name') (current as Record<string, unknown>)['title'] = payload;
       this.legacyDeviceMeta.set(deviceName, current);
+      // Emit device-meta with accumulated legacy fields
+      this.emit('device-meta', { deviceName, meta: { ...current } as WbDeviceMeta } satisfies DeviceMetaEvent);
       return;
     }
 

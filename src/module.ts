@@ -1,29 +1,35 @@
 /**
  * WirenboardPlatform — Matterbridge dynamic platform plugin for Wirenboard.
- * Implements Phase C: minimal switch → onOffOutlet support.
+ * Step 6: Full platform refactor using WirenboardDevice.
  *
  * @file module.ts
  */
 
 import {
+  coverDevice,
+  extendedColorLight,
   MatterbridgeDynamicPlatform,
   MatterbridgeEndpoint,
-  onOffOutlet,
   PlatformConfig,
   PlatformMatterbridge,
 } from 'matterbridge';
 import { AnsiLogger } from 'matterbridge/logger';
+import { BridgedDeviceBasicInformation, ColorControl } from 'matterbridge/matter/clusters';
+import { waiter } from 'matterbridge/utils';
 
-import { findMapping } from './controlMapping.js';
-import { WbControl, WbControlMeta, WbDevice, WbDeviceMeta } from './wirenboardTypes.js';
+import { DeviceOverrides, findMapping } from './controlMapping.js';
+import { WbDevice } from './wirenboardTypes.js';
 import {
   ControlErrorEvent,
   ControlMetaEvent,
   ControlValueEvent,
+  DeviceErrorEvent,
   DeviceMetaEvent,
+  DeviceRemovedEvent,
   WirenboardMqtt,
   WirenboardMqttConfig,
 } from './wirenboardMqtt.js';
+import { GroupingMode, WirenboardDevice } from './wirenboardDevice.js';
 
 // ---------------------------------------------------------------------------
 // Plugin entry point
@@ -42,36 +48,47 @@ export default function initializePlugin(
 // ---------------------------------------------------------------------------
 
 export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
-  private readonly mqtt: WirenboardMqtt;
+  public readonly mqtt: WirenboardMqtt;
 
   /** WB devices discovered via MQTT retained messages */
-  private readonly deviceMap: Map<string, WbDevice> = new Map();
+  public readonly deviceMap: Map<string, WbDevice> = new Map();
 
-  /** Timestamp of the last device-meta or control-meta event */
-  private lastMetaTimestamp = 0;
+  /** Registered Matter devices keyed by WB device name */
+  public readonly wbDevices: Map<string, WirenboardDevice> = new Map();
 
-  private shouldRegister = false;
-  private shouldConfigure = false;
+  /** Cache of last control values: key = 'deviceName/controlName' */
+  public readonly controlValueCache: Map<string, string> = new Map();
+
+  /** Timestamp of the last device-meta or control-meta event (for idle detection) */
+  public lastMetaTimestamp = 0;
+
+  public shouldStart = false;
+  public shouldConfigure = false;
 
   constructor(matterbridge: PlatformMatterbridge, log: AnsiLogger, config: PlatformConfig) {
     super(matterbridge, log, config);
 
+    // Verify Matterbridge version
     if (
       this.verifyMatterbridgeVersion === undefined ||
       typeof this.verifyMatterbridgeVersion !== 'function' ||
-      !this.verifyMatterbridgeVersion('3.4.0')
+      !this.verifyMatterbridgeVersion('3.7.0')
     ) {
       throw new Error(
-        `This plugin requires Matterbridge >= "3.4.0". Current version: ${this.matterbridge.matterbridgeVersion}`,
+        `This plugin requires Matterbridge version >= "3.7.0". Please update Matterbridge from ${this.matterbridge.matterbridgeVersion} to the latest version in the frontend.`,
       );
     }
 
+    // Build MQTT config from platform config
     const mqttConfig: WirenboardMqttConfig = {
       mqttHost: (config['mqttHost'] as string | undefined) ?? 'localhost',
       mqttPort: config['mqttPort'] as number | undefined,
       mqttProtocol: (config['mqttProtocol'] as WirenboardMqttConfig['mqttProtocol']) ?? 'mqtt',
       mqttUsername: config['mqttUsername'] as string | undefined,
       mqttPassword: config['mqttPassword'] as string | undefined,
+      mqttCaPath: config['mqttCaPath'] as string | undefined,
+      mqttCertPath: config['mqttCertPath'] as string | undefined,
+      mqttKeyPath: config['mqttKeyPath'] as string | undefined,
     };
 
     this.mqtt = new WirenboardMqtt(mqttConfig, this.log);
@@ -81,6 +98,13 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     this.mqtt.on('control-meta', (evt: ControlMetaEvent) => this.onControlMeta(evt));
     this.mqtt.on('control-value', (evt: ControlValueEvent) => this.onControlValue(evt));
     this.mqtt.on('control-error', (evt: ControlErrorEvent) => this.onControlError(evt));
+    this.mqtt.on('device-error', (evt: DeviceErrorEvent) => this.onDeviceError(evt));
+    this.mqtt.on('device-removed', (evt: DeviceRemovedEvent) => this.onDeviceRemoved(evt));
+    this.mqtt.on('mqtt_connect', () => this.onMqttConnect());
+    this.mqtt.on('mqtt_disconnect', () => this.onMqttDisconnect());
+
+    this.shouldStart = false;
+    this.shouldConfigure = false;
 
     // Start MQTT connection — retained messages arrive immediately
     this.mqtt.start().catch((err: Error) => {
@@ -95,35 +119,81 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
   override async onStart(reason?: string): Promise<void> {
     this.log.info(`onStart called: ${reason ?? 'none'}`);
 
+    // Always first — wait for storage and selects initialization
     await this.ready;
     await this.clearSelect();
 
-    this.shouldRegister = true;
+    this.shouldStart = true;
 
-    // Wait for discovery to idle (devices found AND quiet for idleThreshold ms)
-    const idleThreshold = (config: PlatformConfig) =>
-      (config['discoveryIdleMs'] as number | undefined) ?? 1000;
+    // Discovery: idle-based waiter
+    const idleMs = (this.config['discoveryIdleMs'] as number | undefined) ?? 1000;
     const maxTimeout = ((this.config['discoveryTimeout'] as number | undefined) ?? 30) * 1000;
 
-    const isDiscoveryIdle = (): boolean => {
-      return (
-        this.deviceMap.size > 0 && Date.now() - this.lastMetaTimestamp > idleThreshold(this.config)
-      );
-    };
+    const ok = await waiter(
+      'WB discovery',
+      () => this.deviceMap.size > 0 && Date.now() - this.lastMetaTimestamp > idleMs,
+      false,
+      maxTimeout,
+      200,
+      false,
+    );
 
-    const waited = await this.waitForDiscovery(isDiscoveryIdle, maxTimeout, 200);
-    if (!waited) {
-      this.log.warn(`Discovery timeout after ${maxTimeout}ms. Registering ${this.deviceMap.size} devices found so far.`);
+    if (!ok) {
+      this.log.warn(
+        `Discovery timeout after ${maxTimeout}ms. Registering ${this.deviceMap.size} devices found so far.`,
+      );
     }
 
-    await this.registerDevices();
-    this.shouldConfigure = false;
+    await this.registerDiscoveredDevices();
   }
 
   override async onConfigure(): Promise<void> {
     await super.onConfigure();
     this.shouldConfigure = true;
     this.log.info('onConfigure called');
+
+    // Replay retained values accumulated during discovery
+    for (const [key, value] of this.controlValueCache) {
+      const slash = key.indexOf('/');
+      if (slash === -1) continue;
+      const deviceName = key.substring(0, slash);
+      const controlName = key.substring(slash + 1);
+      const wbDevice = this.wbDevices.get(deviceName);
+      if (wbDevice) {
+        wbDevice.updateFromMqtt(controlName, value);
+      }
+    }
+
+    // coverDevice: set target as current and stopped
+    for (const wbDevice of this.wbDevices.values()) {
+      for (const endpoint of wbDevice.endpoints) {
+        if (endpoint.deviceType === coverDevice.code) {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            if (typeof (endpoint as any).setWindowCoveringTargetAsCurrentAndStopped === 'function') {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await (endpoint as any).setWindowCoveringTargetAsCurrentAndStopped();
+            }
+          } catch {
+            // ignore if not available
+          }
+        }
+
+        // extendedColorLight: init colorMode to CurrentHueAndCurrentSaturation
+        if (endpoint.deviceType === extendedColorLight.code) {
+          try {
+            endpoint.setAttribute(
+              ColorControl.Cluster.id,
+              'colorMode',
+              ColorControl.ColorMode.CurrentHueAndCurrentSaturation,
+              this.log,
+            );
+          } catch {
+            // ignore
+          }
+        }
+      }
+    }
   }
 
   override async onShutdown(reason?: string): Promise<void> {
@@ -136,76 +206,151 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
   }
 
   // ---------------------------------------------------------------------------
-  // Discovery waiter helper
+  // Device registration
   // ---------------------------------------------------------------------------
 
-  private async waitForDiscovery(
-    predicate: () => boolean,
-    timeout: number,
-    interval: number,
-  ): Promise<boolean> {
-    const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
-      if (predicate()) return true;
-      await new Promise<void>((resolve) => setTimeout(resolve, interval));
-    }
-    return predicate();
-  }
-
-  // ---------------------------------------------------------------------------
-  // Device registration — Phase C: only switch → onOffOutlet
-  // ---------------------------------------------------------------------------
-
-  private async registerDevices(): Promise<void> {
-    for (const [, wbDevice] of this.deviceMap) {
-      // Find switch controls only (Phase C minimal)
-      const switchControls = [...wbDevice.controls.values()].filter(
-        (ctrl) => {
-          const m = findMapping(ctrl.meta, ctrl.name);
-          return m?.matterDeviceType === onOffOutlet;
-        },
+  private async registerDiscoveredDevices(): Promise<void> {
+    // Failsafe check
+    const failsafeCount = this.config['failsafeCount'] as number | undefined;
+    if (failsafeCount !== undefined && failsafeCount > 0 && this.deviceMap.size < failsafeCount) {
+      const ok = await waiter(
+        'failsafe',
+        () => this.deviceMap.size >= failsafeCount,
+        false,
+        60000,
+        1000,
+        false,
       );
-
-      if (switchControls.length === 0) continue;
-
-      // Create one bridged device per WB device with switch controls
-      const deviceTitle =
-        typeof wbDevice.meta.title === 'string'
-          ? wbDevice.meta.title
-          : (wbDevice.meta.title.en ?? wbDevice.name);
-
-      for (const ctrl of switchControls) {
-        const uniqueId = `${wbDevice.name}_${ctrl.name}`;
-        const endpoint = new MatterbridgeEndpoint(onOffOutlet, { id: uniqueId })
-          .createDefaultBridgedDeviceBasicInformationClusterServer(
-            `${deviceTitle} — ${ctrl.name}`,
-            uniqueId,
-            this.matterbridge.aggregatorVendorId,
-            'Wirenboard',
-            'WB Switch',
-            1,
-            '1.0.0',
-          )
-          .addRequiredClusterServers()
-          .addCommandHandler('on', () => {
-            this.mqtt.publish(wbDevice.name, ctrl.name, '1').catch((err: Error) => {
-              this.log.error(`publish on failed: ${err.message}`);
-            });
-          })
-          .addCommandHandler('off', () => {
-            this.mqtt.publish(wbDevice.name, ctrl.name, '0').catch((err: Error) => {
-              this.log.error(`publish off failed: ${err.message}`);
-            });
-          });
-
-        this.setSelectDevice(uniqueId, `${deviceTitle} — ${ctrl.name}`);
-        const selected = this.validateDevice([uniqueId]);
-        if (selected) {
-          await this.registerDevice(endpoint);
-          this.log.info(`Registered switch: ${wbDevice.name}/${ctrl.name}`);
-        }
+      if (!ok) {
+        throw new Error(
+          `Failsafe: only ${this.deviceMap.size} devices found, failsafeCount=${failsafeCount}`,
+        );
       }
     }
+
+    const groupingMode: GroupingMode =
+      (this.config['groupingMode'] as GroupingMode | undefined) ?? 'device';
+    const includeHidden = (this.config['includeHidden'] as boolean | undefined) ?? false;
+    const deviceOverridesConfig = this.config['deviceOverrides'] as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+
+    for (const [, wbDevice] of this.deviceMap) {
+      await this.registerWbDevice(wbDevice, groupingMode, includeHidden, deviceOverridesConfig);
+    }
+  }
+
+  private async registerWbDevice(
+    wbDevice: WbDevice,
+    groupingMode: GroupingMode,
+    includeHidden: boolean,
+    deviceOverridesConfig: Record<string, Record<string, unknown>> | undefined,
+  ): Promise<void> {
+    if (!wbDevice.name) return;
+
+    // Check if at least one control has a mapping
+    const hasMappable = [...wbDevice.controls.values()].some((ctrl) =>
+      findMapping(ctrl.meta, ctrl.name),
+    );
+    if (!hasMappable) {
+      this.log.info(`No mappable controls for device ${wbDevice.name} — skipping`);
+      return;
+    }
+
+    const deviceTitle =
+      typeof wbDevice.meta.title === 'string'
+        ? wbDevice.meta.title || wbDevice.name
+        : (wbDevice.meta.title.en || wbDevice.name);
+
+    const serial = wbDevice.name;
+
+    // Register device in whitelist/blacklist UI
+    this.setSelectDevice(serial, deviceTitle);
+
+    // Register controls for entity whitelist/blacklist UI
+    for (const [, ctrl] of wbDevice.controls) {
+      const ctrlTitle = ctrl.meta.title
+        ? typeof ctrl.meta.title === 'string'
+          ? ctrl.meta.title
+          : ctrl.meta.title.en
+        : ctrl.name;
+      this.setSelectDeviceEntity(serial, ctrl.name, ctrlTitle ?? ctrl.name, 'control');
+    }
+
+    // Validate whitelist/blacklist
+    if (!this.validateDevice([deviceTitle, serial])) return;
+
+    // Resolve device-level overrides
+    const deviceOverrides = deviceOverridesConfig?.[wbDevice.name] as DeviceOverrides | undefined;
+
+    // Create WirenboardDevice (builds all endpoints)
+    let wbDev: WirenboardDevice;
+    try {
+      wbDev = await WirenboardDevice.create(
+        this.log,
+        wbDevice,
+        this.mqtt,
+        groupingMode,
+        this.matterbridge.aggregatorVendorId,
+        includeHidden,
+        deviceOverrides,
+      );
+    } catch (err) {
+      this.log.error(`Failed to create WirenboardDevice for ${wbDevice.name}: ${String(err)}`);
+      return;
+    }
+
+    if (wbDev.endpoints.length === 0) {
+      this.log.info(`WirenboardDevice ${wbDevice.name} produced no endpoints — skipping`);
+      return;
+    }
+
+    const mqttHost = (this.config['mqttHost'] as string | undefined) ?? 'localhost';
+
+    // Register all endpoints
+    for (const endpoint of wbDev.endpoints) {
+      endpoint.configUrl = `http://${mqttHost}`;
+
+      // Warn about device types unsupported in Apple Home
+      const appleUnsupported = [
+        'waterValve',
+        'pressureSensor',
+        'flowSensor',
+        'electricalSensor',
+        'airQualitySensor',
+        'smokeCoAlarm',
+      ];
+      const devTypeName = endpoint.deviceType !== undefined
+        ? appleUnsupported.find((n) =>
+            n.toLowerCase() === String(endpoint.deviceType).toLowerCase(),
+          )
+        : undefined;
+      if (devTypeName) {
+        this.log.warn(
+          `Device type '${devTypeName}' for ${wbDevice.name} may not be supported by Apple Home`,
+        );
+      }
+
+      try {
+        await this.registerDevice(endpoint);
+      } catch (err) {
+        this.log.error(`Failed to register endpoint for ${wbDevice.name}: ${String(err)}`);
+      }
+    }
+
+    this.wbDevices.set(wbDevice.name, wbDev);
+    this.log.info(`Registered WB device: ${wbDevice.name} (${wbDev.endpoints.length} endpoints)`);
+  }
+
+  private async registerNewDevice(wbDevice: WbDevice): Promise<void> {
+    const groupingMode: GroupingMode =
+      (this.config['groupingMode'] as GroupingMode | undefined) ?? 'device';
+    const includeHidden = (this.config['includeHidden'] as boolean | undefined) ?? false;
+    const deviceOverridesConfig = this.config['deviceOverrides'] as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+
+    await this.registerWbDevice(wbDevice, groupingMode, includeHidden, deviceOverridesConfig);
   }
 
   // ---------------------------------------------------------------------------
@@ -223,6 +368,13 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
         meta: evt.meta,
         controls: new Map(),
       });
+      // Dynamic registration: if onStart already ran, register new device immediately
+      if (this.shouldStart) {
+        const newDevice = this.deviceMap.get(evt.deviceName)!;
+        this.registerNewDevice(newDevice).catch((err: Error) => {
+          this.log.error(`Dynamic registration failed for ${evt.deviceName}: ${err.message}`);
+        });
+      }
     }
   }
 
@@ -238,9 +390,18 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       };
       this.deviceMap.set(evt.deviceName, device);
     }
+
     const existing = device.controls.get(evt.controlName);
     if (existing) {
+      // Check if type changed after registration — may need endpoint recreation
+      const typeChanged = existing.meta.type !== evt.meta.type;
       existing.meta = evt.meta;
+
+      if (typeChanged && this.shouldStart) {
+        this.log.warn(
+          `Control type changed for ${evt.deviceName}/${evt.controlName}: was '${existing.meta.type}', now '${evt.meta.type}'. Endpoint recreation not yet implemented.`,
+        );
+      }
     } else {
       device.controls.set(evt.controlName, {
         name: evt.controlName,
@@ -252,28 +413,95 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
   }
 
   private onControlValue(evt: ControlValueEvent): void {
-    const device = this.deviceMap.get(evt.deviceName);
-    if (!device) return;
-    const control = device.controls.get(evt.controlName);
-    if (!control) return;
-    control.value = evt.value;
+    // Always cache the latest value
+    this.controlValueCache.set(`${evt.deviceName}/${evt.controlName}`, evt.value);
 
-    // If already configured — update Matter attribute
+    // Also update the device model
+    const device = this.deviceMap.get(evt.deviceName);
+    if (device) {
+      const control = device.controls.get(evt.controlName);
+      if (control) control.value = evt.value;
+    }
+
+    // If configured — update Matter attribute directly
     if (this.shouldConfigure) {
-      this.applyControlValue(device, control);
+      const wbDev = this.wbDevices.get(evt.deviceName);
+      if (wbDev) {
+        wbDev.updateFromMqtt(evt.controlName, evt.value);
+      }
     }
   }
 
   private onControlError(evt: ControlErrorEvent): void {
     const device = this.deviceMap.get(evt.deviceName);
-    if (!device) return;
-    const control = device.controls.get(evt.controlName);
-    if (control) control.error = evt.error;
+    if (device) {
+      const control = device.controls.get(evt.controlName);
+      if (control) control.error = evt.error;
+    }
+
+    // Flag 'r' = read error → unreachable
+    const hasReadError = evt.error.includes('r');
+    const wbDev = this.wbDevices.get(evt.deviceName);
+    if (wbDev) {
+      wbDev.setReachable(!hasReadError);
+    }
   }
 
-  private applyControlValue(_device: WbDevice, _control: WbControl): void {
-    // Full implementation in later steps (wirenboardDevice.ts).
-    // Phase C: placeholder.
+  private onDeviceError(evt: DeviceErrorEvent): void {
+    this.log.warn(`Device error for ${evt.deviceName}: ${evt.error}`);
+    const wbDev = this.wbDevices.get(evt.deviceName);
+    if (wbDev) {
+      wbDev.setReachable(false);
+    }
+  }
+
+  private onDeviceRemoved(evt: DeviceRemovedEvent): void {
+    this.log.info(`Device removed: ${evt.deviceName}`);
+    this.deviceMap.delete(evt.deviceName);
+
+    const wbDev = this.wbDevices.get(evt.deviceName);
+    if (wbDev) {
+      for (const endpoint of wbDev.endpoints) {
+        this.unregisterDevice(endpoint).catch((err: Error) => {
+          this.log.error(`Failed to unregister endpoint for ${evt.deviceName}: ${err.message}`);
+        });
+      }
+      this.wbDevices.delete(evt.deviceName);
+    }
+  }
+
+  private onMqttDisconnect(): void {
+    this.log.warn('MQTT disconnected — marking all devices unreachable');
+    for (const wbDev of this.wbDevices.values()) {
+      wbDev.setReachable(false);
+    }
+  }
+
+  private onMqttConnect(): void {
+    this.log.info('MQTT connected — marking all devices reachable');
+    for (const wbDev of this.wbDevices.values()) {
+      wbDev.setReachable(true);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Reachability helper (for direct endpoint access when WirenboardDevice not yet created)
+  // ---------------------------------------------------------------------------
+
+  private setEndpointReachable(endpoint: MatterbridgeEndpoint, reachable: boolean): void {
+    if (endpoint.maybeNumber !== undefined) {
+      endpoint.setAttribute(
+        BridgedDeviceBasicInformation.Cluster.id,
+        'reachable',
+        reachable,
+        this.log,
+      );
+      endpoint.triggerEvent(
+        BridgedDeviceBasicInformation.Cluster.id,
+        'reachableChanged',
+        { reachableNewValue: reachable },
+        this.log,
+      );
+    }
   }
 }
-

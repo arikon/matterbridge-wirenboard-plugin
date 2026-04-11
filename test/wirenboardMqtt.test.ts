@@ -182,6 +182,38 @@ describe('messageHandler — control-error', () => {
 // Legacy subtopic meta
 // ---------------------------------------------------------------------------
 
+describe('messageHandler — device-error', () => {
+  it('parses /devices/<name>/meta/error', () => {
+    const mqtt = createMqtt();
+    const received: { deviceName: string; error: string }[] = [];
+    mqtt.on('device-error', (evt: { deviceName: string; error: string }) => received.push(evt));
+
+    mqtt.messageHandler('/devices/wb-mr6c/meta/error', 'r');
+    expect(received).toHaveLength(1);
+    expect(received[0]).toEqual({ deviceName: 'wb-mr6c', error: 'r' });
+  });
+
+  it('emits device-error with combined flags', () => {
+    const mqtt = createMqtt();
+    const received: { deviceName: string; error: string }[] = [];
+    mqtt.on('device-error', (evt: { deviceName: string; error: string }) => received.push(evt));
+
+    mqtt.messageHandler('/devices/wb-msw-v3/meta/error', 'rp');
+    expect(received).toHaveLength(1);
+    expect(received[0]).toEqual({ deviceName: 'wb-msw-v3', error: 'rp' });
+  });
+
+  it('emits device-error with empty string (error cleared)', () => {
+    const mqtt = createMqtt();
+    const received: { deviceName: string; error: string }[] = [];
+    mqtt.on('device-error', (evt: { deviceName: string; error: string }) => received.push(evt));
+
+    mqtt.messageHandler('/devices/wb-mr6c/meta/error', '');
+    expect(received).toHaveLength(1);
+    expect(received[0]).toEqual({ deviceName: 'wb-mr6c', error: '' });
+  });
+});
+
 describe('messageHandler — legacy subtopic meta', () => {
   it('assembles control meta from individual subtopics', () => {
     const mqtt = createMqtt();
@@ -199,6 +231,18 @@ describe('messageHandler — legacy subtopic meta', () => {
     expect(last.deviceName).toBe('wb-old');
     expect(last.controlName).toBe('temp');
     expect(last.meta.type).toBe('value');
+  });
+
+  it('emits device-meta from legacy /devices/<name>/meta/name subtopic', () => {
+    const mqtt = createMqtt();
+    const received: DeviceMetaEvent[] = [];
+    mqtt.on('device-meta', (evt: DeviceMetaEvent) => received.push(evt));
+
+    mqtt.messageHandler('/devices/wb-old/meta/name', 'Old Device');
+
+    expect(received).toHaveLength(1);
+    expect(received[0]!.deviceName).toBe('wb-old');
+    expect(received[0]!.meta.title).toBe('Old Device');
   });
 });
 

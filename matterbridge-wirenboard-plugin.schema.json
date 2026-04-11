@@ -1,0 +1,193 @@
+{
+  "title": "Matterbridge Wirenboard plugin",
+  "description": "matterbridge-wirenboard-plugin by https://github.com/arikon",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "mqttHost": {
+      "title": "MQTT Host",
+      "description": "Hostname or IP address of the MQTT broker (Wirenboard controller). E.g. 192.168.1.100 or localhost. / Хост или IP-адрес MQTT-брокера (контроллер Wirenboard). Например: 192.168.1.100 или localhost.",
+      "type": "string",
+      "default": "localhost"
+    },
+    "mqttPort": {
+      "title": "MQTT Port",
+      "description": "MQTT broker port. Default: 1883 for mqtt/ws, 8883 for mqtts/wss. / Порт MQTT-брокера. По умолчанию: 1883 для mqtt/ws, 8883 для mqtts/wss.",
+      "type": "number",
+      "default": 1883
+    },
+    "mqttUsername": {
+      "title": "MQTT Username",
+      "description": "MQTT broker username. Leave empty if authentication is not required. / Имя пользователя для MQTT-брокера. Оставьте пустым, если аутентификация не требуется.",
+      "type": "string",
+      "default": ""
+    },
+    "mqttPassword": {
+      "title": "MQTT Password",
+      "description": "MQTT broker password. Leave empty if authentication is not required. / Пароль для MQTT-брокера. Оставьте пустым, если аутентификация не требуется.",
+      "type": "string",
+      "default": "",
+      "ui:widget": "password"
+    },
+    "mqttProtocol": {
+      "title": "MQTT Protocol",
+      "description": "Transport protocol for MQTT connection. Use mqtts or wss for TLS-encrypted connections. / Транспортный протокол для подключения к MQTT. Используйте mqtts или wss для TLS-шифрования.",
+      "type": "string",
+      "oneOf": [
+        {
+          "title": "mqtt (plain TCP)",
+          "enum": ["mqtt"]
+        },
+        {
+          "title": "mqtts (TLS over TCP)",
+          "enum": ["mqtts"]
+        },
+        {
+          "title": "ws (WebSocket)",
+          "enum": ["ws"]
+        },
+        {
+          "title": "wss (WebSocket + TLS)",
+          "enum": ["wss"]
+        }
+      ],
+      "default": "mqtt"
+    },
+    "mqttCaPath": {
+      "title": "MQTT CA Certificate Path",
+      "description": "Absolute path to the CA certificate file (PEM format) used to verify the broker's TLS certificate. Required for self-signed certificates. / Абсолютный путь к файлу CA-сертификата (PEM) для проверки TLS-сертификата брокера. Требуется при использовании самоподписанных сертификатов.",
+      "type": "string",
+      "default": ""
+    },
+    "mqttCertPath": {
+      "title": "MQTT Client Certificate Path",
+      "description": "Absolute path to the client certificate file (PEM format) for mutual TLS authentication. / Абсолютный путь к файлу клиентского сертификата (PEM) для взаимной TLS-аутентификации.",
+      "type": "string",
+      "default": ""
+    },
+    "mqttKeyPath": {
+      "title": "MQTT Client Private Key Path",
+      "description": "Absolute path to the client private key file (PEM format) for mutual TLS authentication. / Абсолютный путь к файлу приватного ключа клиента (PEM) для взаимной TLS-аутентификации.",
+      "type": "string",
+      "default": ""
+    },
+    "discoveryMode": {
+      "title": "Discovery Mode",
+      "description": "Device discovery mode. 'auto' — subscribe to MQTT meta-topics and discover all devices automatically. 'static' — only expose devices listed in the 'devices' field. / Режим обнаружения устройств. 'auto' — автоматическое обнаружение через MQTT meta-топики. 'static' — только устройства из списка 'devices'.",
+      "type": "string",
+      "oneOf": [
+        {
+          "title": "auto (automatic MQTT discovery)",
+          "enum": ["auto"]
+        },
+        {
+          "title": "static (manual device list)",
+          "enum": ["static"]
+        }
+      ],
+      "default": "auto"
+    },
+    "discoveryTimeout": {
+      "title": "Discovery Timeout (seconds)",
+      "description": "Maximum time in seconds to wait for device discovery before proceeding. Only used in 'auto' mode. / Максимальное время ожидания обнаружения устройств в секундах. Используется только в режиме 'auto'.",
+      "type": "number",
+      "default": 30
+    },
+    "discoveryIdleMs": {
+      "title": "Discovery Idle Time (ms)",
+      "description": "Time in milliseconds of inactivity on MQTT meta-topics before discovery is considered complete. Increase if devices are slow to respond. / Время простоя в миллисекундах на MQTT meta-топиках, после которого обнаружение считается завершённым. Увеличьте, если устройства медленно отвечают.",
+      "type": "number",
+      "default": 1000
+    },
+    "groupingMode": {
+      "title": "Grouping Mode",
+      "description": "Controls how WB controls are grouped into Matter endpoints. 'device' — one Matter device per WB device, controls become child endpoints (simpler, fewer Matter nodes). 'control' — each WB control becomes a separate Matter device (more granular, but more Matter nodes). / Определяет группировку контролов Wirenboard в Matter-устройства. 'device' — одно Matter-устройство на WB-устройство, контролы — дочерние эндпоинты (проще, меньше Matter-узлов). 'control' — каждый контрол WB становится отдельным Matter-устройством (гибче, но больше Matter-узлов).",
+      "type": "string",
+      "oneOf": [
+        {
+          "title": "device (one Matter device per WB device)",
+          "enum": ["device"]
+        },
+        {
+          "title": "control (one Matter device per WB control)",
+          "enum": ["control"]
+        }
+      ],
+      "default": "device"
+    },
+    "includeHidden": {
+      "title": "Include Hidden Controls",
+      "description": "Include controls marked as hidden in WB meta (meta/order < 0 or meta/hidden = true). By default hidden controls are excluded. / Включать контролы, помеченные как скрытые в метаданных WB (meta/order < 0 или meta/hidden = true). По умолчанию скрытые контролы не экспортируются.",
+      "type": "boolean",
+      "default": false
+    },
+    "devices": {
+      "title": "Static Device List",
+      "description": "List of WB device IDs to expose when discoveryMode is 'static'. E.g. ['wb-mr6c_123', 'wb-msw-v3_456']. / Список идентификаторов WB-устройств для экспорта в режиме discoveryMode='static'. Например: ['wb-mr6c_123', 'wb-msw-v3_456'].",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all discovered devices will be exposed. / Только устройства из этого списка будут экспортированы. Если список пуст — экспортируются все обнаруженные устройства.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "Devices in this list will not be exposed. If the list is empty, no devices will be excluded. / Устройства из этого списка не будут экспортированы. Если список пуст — ни одно устройство не исключается.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "deviceOverrides": {
+      "title": "Device Overrides",
+      "description": "Free-form JSON object to override per-device settings. Keys are WB device IDs. Example: {\"wb-mr6c_123\": {\"name\": \"My Relay\"}}. / JSON-объект для переопределения настроек отдельных устройств. Ключи — идентификаторы WB-устройств. Пример: {\"wb-mr6c_123\": {\"name\": \"My Relay\"}}.",
+      "type": "object",
+      "additionalProperties": true,
+      "default": {}
+    },
+    "failsafeCount": {
+      "title": "Failsafe Device Count",
+      "description": "Minimum number of devices that must be registered. If fewer devices are registered on startup, the plugin will enter error mode to prevent losing controller configuration due to network issues. Set to 0 to disable. / Минимальное количество устройств, которые должны быть зарегистрированы. Если при запуске зарегистрировано меньше устройств, плагин перейдёт в режим ошибки, чтобы предотвратить потерю конфигурации контроллера из-за сетевых проблем. 0 = отключено.",
+      "type": "number",
+      "default": 0
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug logging for the plugin. For troubleshooting only, not recommended for production use. / Включить отладочное логирование плагина. Только для диагностики, не рекомендуется для production.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. For debugging purposes only, not recommended for production use. / Отменять регистрацию всех устройств при остановке. Только для отладки, не рекомендуется для production.",
+      "type": "boolean",
+      "default": false,
+      "ui:widget": "hidden"
+    }
+  }
+}
