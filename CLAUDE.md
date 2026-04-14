@@ -24,6 +24,23 @@ npm run test:typecheck    # type-check test files without emit
 npm test -- test/controlMapping.test.ts
 ```
 
+## OpenSpec
+
+Spec-driven requirements live under **`openspec/`** in this repo:
+
+- **`openspec/specs/<capability>/spec.md`** — canonical capability specs (e.g. `configuration`, `control-mapping`).
+- **`openspec/changes/archive/`** — archived change folders (proposal, design, tasks, delta specs).
+
+Run the **`openspec`** CLI from the **repository root** (the directory that contains `openspec/`). Typical commands:
+
+```bash
+openspec list --json
+openspec status --change "<change-name>" --json
+openspec instructions apply --change "<change-name>" --json
+```
+
+Use **`--help`** on subcommands for options. After moving or cloning, ensure the shell’s current directory is this project so paths resolve correctly.
+
 ## Architecture
 
 Five source files:
