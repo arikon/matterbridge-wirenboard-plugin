@@ -1,46 +1,47 @@
 /**
  * TypeScript types for Wirenboard MQTT conventions.
+ *
  * @file wirenboardTypes.ts
  */
 
 /** Actual control types supported by Wirenboard */
 export type WbControlType =
-  | 'switch'
-  | 'wo-switch'
-  | 'alarm'
-  | 'pushbutton'
-  | 'range'
-  | 'dimmer'
-  | 'rgb'
-  | 'text'
-  | 'value'
-  | 'enum'
-  | 'unixtime'
-  | 'w1-id';
+  | "switch"
+  | "wo-switch"
+  | "alarm"
+  | "pushbutton"
+  | "range"
+  | "dimmer"
+  | "rgb"
+  | "text"
+  | "value"
+  | "enum"
+  | "unixtime"
+  | "w1-id";
 
 /**
  * Deprecated control types from older WB drivers.
  * These get normalized to 'value' + appropriate units before mapping.
  */
 export type WbDeprecatedControlType =
-  | 'temperature'
-  | 'rel_humidity'
-  | 'atmospheric_pressure'
-  | 'rainfall'
-  | 'wind_speed'
-  | 'power'
-  | 'power_consumption'
-  | 'voltage'
-  | 'water_flow'
-  | 'water_consumption'
-  | 'resistance'
-  | 'concentration'
-  | 'heat_power'
-  | 'heat_energy'
-  | 'current'
-  | 'pressure'
-  | 'lux'
-  | 'sound_level';
+  | "temperature"
+  | "rel_humidity"
+  | "atmospheric_pressure"
+  | "rainfall"
+  | "wind_speed"
+  | "power"
+  | "power_consumption"
+  | "voltage"
+  | "water_flow"
+  | "water_consumption"
+  | "resistance"
+  | "concentration"
+  | "heat_power"
+  | "heat_energy"
+  | "current"
+  | "pressure"
+  | "lux"
+  | "sound_level";
 
 export interface WbDeviceMeta {
   driver: string;

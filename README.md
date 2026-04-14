@@ -27,11 +27,11 @@ Wirenboard devices are discovered via standard WB MQTT conventions (`/devices/+/
 
 ## Prerequisites
 
-| Requirement | Version |
-|---|---|
-| [Matterbridge](https://github.com/Luligu/matterbridge) | >= 3.7.0 |
-| Node.js | 20.19+ / 22.13+ / 24+ |
-| MQTT broker | Wirenboard controller or any Mosquitto instance |
+| Requirement                                            | Version                                         |
+| ------------------------------------------------------ | ----------------------------------------------- |
+| [Matterbridge](https://github.com/Luligu/matterbridge) | >= 3.7.0                                        |
+| Node.js                                                | 20.19+ / 22.13+ / 24+                           |
+| MQTT broker                                            | Wirenboard controller or any Mosquitto instance |
 
 ## Installation
 
@@ -63,27 +63,27 @@ Configuration is stored in `~/.matterbridge/matterbridge-wirenboard-plugin.confi
 
 ### All options
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `mqttHost` | string | `"localhost"` | MQTT broker hostname or IP |
-| `mqttPort` | number | `1883` | MQTT broker port |
-| `mqttUsername` | string | `""` | MQTT username (leave empty if not required) |
-| `mqttPassword` | string | `""` | MQTT password |
-| `mqttProtocol` | string | `"mqtt"` | Transport: `mqtt`, `mqtts`, `ws`, `wss` |
-| `mqttCaPath` | string | `""` | Path to CA certificate (PEM) for TLS |
-| `mqttCertPath` | string | `""` | Path to client certificate (PEM) for mutual TLS |
-| `mqttKeyPath` | string | `""` | Path to client private key (PEM) for mutual TLS |
-| `discoveryMode` | string | `"auto"` | `auto` — subscribe and discover; `static` — use `devices` list only |
-| `discoveryTimeout` | number | `30` | Max seconds to wait for discovery (auto mode) |
-| `discoveryIdleMs` | number | `1000` | Idle time (ms) on meta-topics before discovery is considered complete |
-| `groupingMode` | string | `"device"` | `device` — one Matter node per WB device; `control` — one Matter node per control |
-| `includeHidden` | boolean | `false` | Include controls marked hidden in WB meta |
-| `devices` | string[] | `[]` | Device IDs to expose in `static` discovery mode |
-| `whiteList` | string[] | `[]` | Only expose listed devices (empty = all) |
-| `blackList` | string[] | `[]` | Never expose listed devices |
-| `deviceOverrides` | object | `{}` | Per-device overrides (see [Advanced](#advanced)) |
-| `failsafeCount` | number | `0` | Min devices required on startup (0 = disabled) |
-| `debug` | boolean | `false` | Enable verbose debug logging |
+| Field              | Type     | Default       | Description                                                                       |
+| ------------------ | -------- | ------------- | --------------------------------------------------------------------------------- |
+| `mqttHost`         | string   | `"localhost"` | MQTT broker hostname or IP                                                        |
+| `mqttPort`         | number   | `1883`        | MQTT broker port                                                                  |
+| `mqttUsername`     | string   | `""`          | MQTT username (leave empty if not required)                                       |
+| `mqttPassword`     | string   | `""`          | MQTT password                                                                     |
+| `mqttProtocol`     | string   | `"mqtt"`      | Transport: `mqtt`, `mqtts`, `ws`, `wss`                                           |
+| `mqttCaPath`       | string   | `""`          | Path to CA certificate (PEM) for TLS                                              |
+| `mqttCertPath`     | string   | `""`          | Path to client certificate (PEM) for mutual TLS                                   |
+| `mqttKeyPath`      | string   | `""`          | Path to client private key (PEM) for mutual TLS                                   |
+| `discoveryMode`    | string   | `"auto"`      | `auto` — subscribe and discover; `static` — use `devices` list only               |
+| `discoveryTimeout` | number   | `30`          | Max seconds to wait for discovery (auto mode)                                     |
+| `discoveryIdleMs`  | number   | `1000`        | Idle time (ms) on meta-topics before discovery is considered complete             |
+| `groupingMode`     | string   | `"device"`    | `device` — one Matter node per WB device; `control` — one Matter node per control |
+| `includeHidden`    | boolean  | `false`       | Include controls marked hidden in WB meta                                         |
+| `devices`          | string[] | `[]`          | Device IDs to expose in `static` discovery mode                                   |
+| `whiteList`        | string[] | `[]`          | Only expose listed devices (empty = all)                                          |
+| `blackList`        | string[] | `[]`          | Never expose listed devices                                                       |
+| `deviceOverrides`  | object   | `{}`          | Per-device overrides (see [Advanced](#advanced))                                  |
+| `failsafeCount`    | number   | `0`           | Min devices required on startup (0 = disabled)                                    |
+| `debug`            | boolean  | `false`       | Enable verbose debug logging                                                      |
 
 ### Example config
 
@@ -113,42 +113,42 @@ Configuration is stored in `~/.matterbridge/matterbridge-wirenboard-plugin.confi
 
 ### Switches & Actuators
 
-| WB `meta.type` | Condition | Matter Device Type | Matter Cluster |
-|---|---|---|---|
-| `switch` | writable | `onOffOutlet` | `OnOff` |
-| `switch` | readonly | `contactSensor` | `BooleanState` |
-| `switch` | name contains `valve`/`кран` | `waterValve` | `ValveConfigurationAndControl` |
-| `switch` | name contains `lock`/`замок` | `doorLockDevice` | `DoorLock` |
-| `switch` | name contains `fan`/`вент` | `fanDevice` | `FanControl` |
-| `switch` | name contains `pump`/`насос` | `pumpDevice` | `OnOff` + `PumpConfigurationAndControl` |
-| `switch` | name contains `motion`/`движ`/`occupancy` (readonly) | `occupancySensor` | `OccupancySensing` |
-| `range` | — | `dimmableLight` | `OnOff` + `LevelControl` |
-| `range` | name contains `blind`/`curtain`/`штор`/`жалюзи` | `coverDevice` | `WindowCovering` |
-| `range` | name contains `fan`/`вент` + speed | `fanDevice` | `FanControl` |
-| `rgb` | — | `extendedColorLight` | `OnOff` + `ColorControl` |
-| `pushbutton`, `wo-switch` | — | `genericSwitch` | `Switch` (MomentarySwitch) |
+| WB `meta.type`            | Condition                                            | Matter Device Type   | Matter Cluster                          |
+| ------------------------- | ---------------------------------------------------- | -------------------- | --------------------------------------- |
+| `switch`                  | writable                                             | `onOffOutlet`        | `OnOff`                                 |
+| `switch`                  | readonly                                             | `contactSensor`      | `BooleanState`                          |
+| `switch`                  | name contains `valve`/`кран`                         | `waterValve`         | `ValveConfigurationAndControl`          |
+| `switch`                  | name contains `lock`/`замок`                         | `doorLockDevice`     | `DoorLock`                              |
+| `switch`                  | name contains `fan`/`вент`                           | `fanDevice`          | `FanControl`                            |
+| `switch`                  | name contains `pump`/`насос`                         | `pumpDevice`         | `OnOff` + `PumpConfigurationAndControl` |
+| `switch`                  | name contains `motion`/`движ`/`occupancy` (readonly) | `occupancySensor`    | `OccupancySensing`                      |
+| `range`                   | —                                                    | `dimmableLight`      | `OnOff` + `LevelControl`                |
+| `range`                   | name contains `blind`/`curtain`/`штор`/`жалюзи`      | `coverDevice`        | `WindowCovering`                        |
+| `range`                   | name contains `fan`/`вент` + speed                   | `fanDevice`          | `FanControl`                            |
+| `rgb`                     | —                                                    | `extendedColorLight` | `OnOff` + `ColorControl`                |
+| `pushbutton`, `wo-switch` | —                                                    | `genericSwitch`      | `Switch` (MomentarySwitch)              |
 
 ### Sensors
 
-| WB `meta.type` | `meta.units` | Matter Device Type | Matter Cluster |
-|---|---|---|---|
-| `value` | `deg C` | `temperatureSensor` | `TemperatureMeasurement` |
-| `value` | `%`, `RH` | `humiditySensor` | `RelativeHumidityMeasurement` |
-| `value` | `Pa` / `mbar` / `bar` | `pressureSensor` | `PressureMeasurement` |
-| `value` | `lx` | `lightSensor` | `IlluminanceMeasurement` |
-| `value` | `W` / `V` / `A` / `mA` / `mV` | `electricalSensor` | `ElectricalPowerMeasurement` |
-| `value` | `kWh` | `electricalSensor` | `ElectricalEnergyMeasurement` |
-| `value` | `m³/h` | `flowSensor` | `FlowMeasurement` |
-| `value` | `ppm` (CO2) | `airQualitySensor` | `AirQuality` + `CarbonDioxideConcentrationMeasurement` |
-| `value` | `ppm` (CO, by name) | `airQualitySensor` | `AirQuality` + `CarbonMonoxideConcentrationMeasurement` |
-| `value` | `ppb` (NO2, by name) | `airQualitySensor` | `NitrogenDioxideConcentrationMeasurement` |
-| `value` | `µg/m³` (PM1/PM2.5/PM10, by name) | `airQualitySensor` | `Pm1/Pm25/Pm10ConcentrationMeasurement` |
-| `value` | `ppb`/`ppm` (TVOC, by name) | `airQualitySensor` | `TotalVolatileOrganicCompoundsConcentrationMeasurement` |
-| `alarm` | name contains `smoke`/`дым` | `smokeCoAlarm` | `SmokeCoAlarm` |
-| `alarm` | name contains `leak`/`утечка` | `waterLeakDetector` | `BooleanState` |
-| `alarm` | name contains `freeze`/`замерз` | `waterFreezeDetector` | `BooleanState` |
-| `alarm` | name contains `rain`/`дождь` | `rainSensor` | `BooleanState` |
-| `alarm` | (fallback) | `contactSensor` | `BooleanState` |
+| WB `meta.type` | `meta.units`                      | Matter Device Type    | Matter Cluster                                          |
+| -------------- | --------------------------------- | --------------------- | ------------------------------------------------------- |
+| `value`        | `deg C`                           | `temperatureSensor`   | `TemperatureMeasurement`                                |
+| `value`        | `%`, `RH`                         | `humiditySensor`      | `RelativeHumidityMeasurement`                           |
+| `value`        | `Pa` / `mbar` / `bar`             | `pressureSensor`      | `PressureMeasurement`                                   |
+| `value`        | `lx`                              | `lightSensor`         | `IlluminanceMeasurement`                                |
+| `value`        | `W` / `V` / `A` / `mA` / `mV`     | `electricalSensor`    | `ElectricalPowerMeasurement`                            |
+| `value`        | `kWh`                             | `electricalSensor`    | `ElectricalEnergyMeasurement`                           |
+| `value`        | `m³/h`                            | `flowSensor`          | `FlowMeasurement`                                       |
+| `value`        | `ppm` (CO2)                       | `airQualitySensor`    | `AirQuality` + `CarbonDioxideConcentrationMeasurement`  |
+| `value`        | `ppm` (CO, by name)               | `airQualitySensor`    | `AirQuality` + `CarbonMonoxideConcentrationMeasurement` |
+| `value`        | `ppb` (NO2, by name)              | `airQualitySensor`    | `NitrogenDioxideConcentrationMeasurement`               |
+| `value`        | `µg/m³` (PM1/PM2.5/PM10, by name) | `airQualitySensor`    | `Pm1/Pm25/Pm10ConcentrationMeasurement`                 |
+| `value`        | `ppb`/`ppm` (TVOC, by name)       | `airQualitySensor`    | `TotalVolatileOrganicCompoundsConcentrationMeasurement` |
+| `alarm`        | name contains `smoke`/`дым`       | `smokeCoAlarm`        | `SmokeCoAlarm`                                          |
+| `alarm`        | name contains `leak`/`утечка`     | `waterLeakDetector`   | `BooleanState`                                          |
+| `alarm`        | name contains `freeze`/`замерз`   | `waterFreezeDetector` | `BooleanState`                                          |
+| `alarm`        | name contains `rain`/`дождь`      | `rainSensor`          | `BooleanState`                                          |
+| `alarm`        | (fallback)                        | `contactSensor`       | `BooleanState`                                          |
 
 Deprecated WB types (`temperature`, `rel_humidity`, `voltage`, `power`, `current`, etc.) are automatically normalized to `value` + appropriate units.
 
@@ -156,29 +156,29 @@ Types without a Matter equivalent (`text`, `enum` without override, `sound_level
 
 ## Controller Compatibility
 
-| Feature | Apple Home | Google Home | Amazon Alexa | SmartThings |
-|---|---|---|---|---|
-| On/Off outlets & lights | Yes | Yes | Yes | Yes |
-| Dimmers (LevelControl) | Yes | Yes | Yes | Yes |
-| Color lights (RGB) | Yes | Yes | Yes | Yes |
-| Temperature sensors | Yes | Yes | Yes | Yes |
-| Humidity sensors | Yes | Yes | Yes | Yes |
-| Pressure sensors | Partial¹ | Yes | No | Yes |
-| Air quality sensors | Yes | Yes | Yes | Yes |
-| Electrical sensors | No | No | No | No |
-| Flow sensors | No | Yes | No | Yes |
-| Occupancy sensors | Yes | Yes | Yes | Yes |
-| Contact sensors | Yes | Yes | Yes | Yes |
-| Smoke/CO alarms | Yes² | Partial³ | Yes | Yes |
-| Water leak detectors | Yes² | No | No | Yes |
-| Water valve | Partial⁴ | No | No | Yes |
-| Window coverings | Yes | Yes | Yes | Yes |
-| Door locks | Yes | Yes | Yes | Yes |
-| Fan control | Yes | Yes | Yes | Yes |
-| Thermostats | Yes | Yes | Yes | Yes |
-| Pump | No | Yes | No | Yes |
-| Generic switch (pushbutton) | Yes⁵ | Partial | Yes | Yes |
-| Max bridged endpoints | **150** | ~250 | **50** | ~50 |
+| Feature                     | Apple Home | Google Home | Amazon Alexa | SmartThings |
+| --------------------------- | ---------- | ----------- | ------------ | ----------- |
+| On/Off outlets & lights     | Yes        | Yes         | Yes          | Yes         |
+| Dimmers (LevelControl)      | Yes        | Yes         | Yes          | Yes         |
+| Color lights (RGB)          | Yes        | Yes         | Yes          | Yes         |
+| Temperature sensors         | Yes        | Yes         | Yes          | Yes         |
+| Humidity sensors            | Yes        | Yes         | Yes          | Yes         |
+| Pressure sensors            | Partial¹   | Yes         | No           | Yes         |
+| Air quality sensors         | Yes        | Yes         | Yes          | Yes         |
+| Electrical sensors          | No         | No          | No           | No          |
+| Flow sensors                | No         | Yes         | No           | Yes         |
+| Occupancy sensors           | Yes        | Yes         | Yes          | Yes         |
+| Contact sensors             | Yes        | Yes         | Yes          | Yes         |
+| Smoke/CO alarms             | Yes²       | Partial³    | Yes          | Yes         |
+| Water leak detectors        | Yes²       | No          | No           | Yes         |
+| Water valve                 | Partial⁴   | No          | No           | Yes         |
+| Window coverings            | Yes        | Yes         | Yes          | Yes         |
+| Door locks                  | Yes        | Yes         | Yes          | Yes         |
+| Fan control                 | Yes        | Yes         | Yes          | Yes         |
+| Thermostats                 | Yes        | Yes         | Yes          | Yes         |
+| Pump                        | No         | Yes         | No           | Yes         |
+| Generic switch (pushbutton) | Yes⁵       | Partial     | Yes          | Yes         |
+| Max bridged endpoints       | **150**    | ~250        | **50**       | ~50         |
 
 ¹ Pressure: Apple Home has no dedicated UI tile but automations work.
 ² Requires iOS 18.4+.
@@ -189,6 +189,7 @@ Types without a Matter equivalent (`text`, `enum` without override, `sound_level
 **Alexa hard limit: 50 bridged devices.** Use whitelist/blacklist to stay within the limit. Apple Home limit is 150 (149 + bridge). Electrical sensors and rain/freeze detectors are not supported by any major controller.
 
 Sources:
+
 - [Apple Home — Matter accessories](https://support.apple.com/en-us/102135)
 - [Apple Home — iOS 18.4 smoke/CO/water leak](https://www.matteralpha.com/manufacturer-news/ios-18-4-expands-matter-support-with-smoke-co-and-water-leak-sensors)
 - [Google Home — Supported Matter device types](https://developers.home.google.com/matter/supported-devices)
@@ -246,11 +247,11 @@ Override settings for individual devices or controls:
 
 If a WB device has controls matching this combination, the plugin creates a `thermostatDevice` instead of separate sensor/range endpoints:
 
-| Required | WB control name contains | WB type | Maps to |
-|---|---|---|---|
-| Yes | `temperature` (readonly) | `value`, `deg C` | `localTemperature` |
-| Yes | `setpoint` or `target` | `range`, `deg C` | `occupiedHeatingSetpoint` / `occupiedCoolingSetpoint` |
-| No | `mode` or `system_mode` | `enum` | `systemMode` (Off/Heat/Cool/Auto) |
+| Required | WB control name contains | WB type          | Maps to                                               |
+| -------- | ------------------------ | ---------------- | ----------------------------------------------------- |
+| Yes      | `temperature` (readonly) | `value`, `deg C` | `localTemperature`                                    |
+| Yes      | `setpoint` or `target`   | `range`, `deg C` | `occupiedHeatingSetpoint` / `occupiedCoolingSetpoint` |
+| No       | `mode` or `system_mode`  | `enum`           | `systemMode` (Off/Heat/Cool/Auto)                     |
 
 Heating-only or cooling-only is detected automatically from available controls. Min/max setpoint bounds are taken from `meta.min`/`meta.max` of the setpoint control.
 
@@ -317,11 +318,11 @@ Edit `src/controlMapping.ts`. Each entry specifies the WB type/units match, the 
 
 The following device types are planned for future releases pending Matter controller support:
 
-| WB Device / Use Case | Planned Matter Type |
-|---|---|
-| Soil moisture sensors | `soilMoistureSensor` |
+| WB Device / Use Case        | Planned Matter Type              |
+| --------------------------- | -------------------------------- |
+| Soil moisture sensors       | `soilMoistureSensor`             |
 | Gate / garage door controls | `closureSensor`, `closureDevice` |
-| Irrigation zone valves | `irrigationSystem` |
+| Irrigation zone valves      | `irrigationSystem`               |
 
 ## License
 

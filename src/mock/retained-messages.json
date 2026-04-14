@@ -1,51 +1,123 @@
 [
-  { "topic": "/devices/wb-mr6c_28/meta",                                          "payload": "{\"driver\":\"wb-mr6c\",\"title\":{\"en\":\"WB-MR6C 28\",\"ru\":\"WB-MR6C 28\"}}" },
-  { "topic": "/devices/wb-mr6c_28/controls/K1/meta",                              "payload": "{\"type\":\"switch\",\"order\":1,\"readonly\":false}" },
-  { "topic": "/devices/wb-mr6c_28/controls/K1",                                   "payload": "1" },
-  { "topic": "/devices/wb-mr6c_28/controls/K2/meta",                              "payload": "{\"type\":\"switch\",\"order\":2,\"readonly\":false}" },
-  { "topic": "/devices/wb-mr6c_28/controls/K2",                                   "payload": "0" },
-  { "topic": "/devices/wb-mr6c_28/controls/K3/meta",                              "payload": "{\"type\":\"switch\",\"order\":3,\"readonly\":false}" },
-  { "topic": "/devices/wb-mr6c_28/controls/K3",                                   "payload": "0" },
-  { "topic": "/devices/wb-mr6c_28/controls/K4/meta",                              "payload": "{\"type\":\"switch\",\"order\":4,\"readonly\":false}" },
-  { "topic": "/devices/wb-mr6c_28/controls/K4",                                   "payload": "0" },
-  { "topic": "/devices/wb-mr6c_28/controls/K5/meta",                              "payload": "{\"type\":\"switch\",\"order\":5,\"readonly\":false}" },
-  { "topic": "/devices/wb-mr6c_28/controls/K5",                                   "payload": "0" },
-  { "topic": "/devices/wb-mr6c_28/controls/K6/meta",                              "payload": "{\"type\":\"switch\",\"order\":6,\"readonly\":false}" },
-  { "topic": "/devices/wb-mr6c_28/controls/K6",                                   "payload": "1" },
-  { "topic": "/devices/wb-mr6c_28/controls/Temperature/meta",                     "payload": "{\"type\":\"value\",\"units\":\"deg C\",\"order\":7,\"readonly\":true}" },
-  { "topic": "/devices/wb-mr6c_28/controls/Temperature",                          "payload": "23.5" },
-  { "topic": "/devices/wb-mr6c_28/controls/K1/meta/error",                        "payload": "" },
-  { "topic": "/devices/wb-mr6c_28/controls/K2/meta/error",                        "payload": "r" },
+  {
+    "topic": "/devices/wb-mr6c_28/meta",
+    "payload": "{\"driver\":\"wb-mr6c\",\"title\":{\"en\":\"WB-MR6C 28\",\"ru\":\"WB-MR6C 28\"}}"
+  },
+  {
+    "topic": "/devices/wb-mr6c_28/controls/K1/meta",
+    "payload": "{\"type\":\"switch\",\"order\":1,\"readonly\":false}"
+  },
+  { "topic": "/devices/wb-mr6c_28/controls/K1", "payload": "1" },
+  {
+    "topic": "/devices/wb-mr6c_28/controls/K2/meta",
+    "payload": "{\"type\":\"switch\",\"order\":2,\"readonly\":false}"
+  },
+  { "topic": "/devices/wb-mr6c_28/controls/K2", "payload": "0" },
+  {
+    "topic": "/devices/wb-mr6c_28/controls/K3/meta",
+    "payload": "{\"type\":\"switch\",\"order\":3,\"readonly\":false}"
+  },
+  { "topic": "/devices/wb-mr6c_28/controls/K3", "payload": "0" },
+  {
+    "topic": "/devices/wb-mr6c_28/controls/K4/meta",
+    "payload": "{\"type\":\"switch\",\"order\":4,\"readonly\":false}"
+  },
+  { "topic": "/devices/wb-mr6c_28/controls/K4", "payload": "0" },
+  {
+    "topic": "/devices/wb-mr6c_28/controls/K5/meta",
+    "payload": "{\"type\":\"switch\",\"order\":5,\"readonly\":false}"
+  },
+  { "topic": "/devices/wb-mr6c_28/controls/K5", "payload": "0" },
+  {
+    "topic": "/devices/wb-mr6c_28/controls/K6/meta",
+    "payload": "{\"type\":\"switch\",\"order\":6,\"readonly\":false}"
+  },
+  { "topic": "/devices/wb-mr6c_28/controls/K6", "payload": "1" },
+  {
+    "topic": "/devices/wb-mr6c_28/controls/Temperature/meta",
+    "payload": "{\"type\":\"value\",\"units\":\"deg C\",\"order\":7,\"readonly\":true}"
+  },
+  { "topic": "/devices/wb-mr6c_28/controls/Temperature", "payload": "23.5" },
+  { "topic": "/devices/wb-mr6c_28/controls/K1/meta/error", "payload": "" },
+  { "topic": "/devices/wb-mr6c_28/controls/K2/meta/error", "payload": "r" },
 
-  { "topic": "/devices/wb-msw-v3_42/meta",                                        "payload": "{\"driver\":\"wb-msw-v3\",\"title\":{\"en\":\"WB-MSW v3 42\",\"ru\":\"WB-MSW v3 42\"}}" },
-  { "topic": "/devices/wb-msw-v3_42/controls/Temperature/meta",                   "payload": "{\"type\":\"value\",\"units\":\"deg C\",\"order\":1,\"readonly\":true}" },
-  { "topic": "/devices/wb-msw-v3_42/controls/Temperature",                        "payload": "21.3" },
-  { "topic": "/devices/wb-msw-v3_42/controls/Humidity/meta",                      "payload": "{\"type\":\"value\",\"units\":\"%\",\"order\":2,\"readonly\":true}" },
-  { "topic": "/devices/wb-msw-v3_42/controls/Humidity",                           "payload": "55" },
-  { "topic": "/devices/wb-msw-v3_42/controls/CO2/meta",                           "payload": "{\"type\":\"value\",\"units\":\"ppm\",\"order\":3,\"readonly\":true}" },
-  { "topic": "/devices/wb-msw-v3_42/controls/CO2",                                "payload": "850" },
-  { "topic": "/devices/wb-msw-v3_42/controls/Illuminance/meta",                   "payload": "{\"type\":\"value\",\"units\":\"lx\",\"order\":4,\"readonly\":true}" },
-  { "topic": "/devices/wb-msw-v3_42/controls/Illuminance",                        "payload": "320" },
-  { "topic": "/devices/wb-msw-v3_42/controls/Motion/meta",                        "payload": "{\"type\":\"switch\",\"order\":5,\"readonly\":true}" },
-  { "topic": "/devices/wb-msw-v3_42/controls/Motion",                             "payload": "0" },
+  {
+    "topic": "/devices/wb-msw-v3_42/meta",
+    "payload": "{\"driver\":\"wb-msw-v3\",\"title\":{\"en\":\"WB-MSW v3 42\",\"ru\":\"WB-MSW v3 42\"}}"
+  },
+  {
+    "topic": "/devices/wb-msw-v3_42/controls/Temperature/meta",
+    "payload": "{\"type\":\"value\",\"units\":\"deg C\",\"order\":1,\"readonly\":true}"
+  },
+  { "topic": "/devices/wb-msw-v3_42/controls/Temperature", "payload": "21.3" },
+  {
+    "topic": "/devices/wb-msw-v3_42/controls/Humidity/meta",
+    "payload": "{\"type\":\"value\",\"units\":\"%\",\"order\":2,\"readonly\":true}"
+  },
+  { "topic": "/devices/wb-msw-v3_42/controls/Humidity", "payload": "55" },
+  {
+    "topic": "/devices/wb-msw-v3_42/controls/CO2/meta",
+    "payload": "{\"type\":\"value\",\"units\":\"ppm\",\"order\":3,\"readonly\":true}"
+  },
+  { "topic": "/devices/wb-msw-v3_42/controls/CO2", "payload": "850" },
+  {
+    "topic": "/devices/wb-msw-v3_42/controls/Illuminance/meta",
+    "payload": "{\"type\":\"value\",\"units\":\"lx\",\"order\":4,\"readonly\":true}"
+  },
+  { "topic": "/devices/wb-msw-v3_42/controls/Illuminance", "payload": "320" },
+  {
+    "topic": "/devices/wb-msw-v3_42/controls/Motion/meta",
+    "payload": "{\"type\":\"switch\",\"order\":5,\"readonly\":true}"
+  },
+  { "topic": "/devices/wb-msw-v3_42/controls/Motion", "payload": "0" },
 
-  { "topic": "/devices/wb-mdm3_07/meta",                                          "payload": "{\"driver\":\"wb-mdm3\",\"title\":{\"en\":\"WB-MDM3 07\",\"ru\":\"WB-MDM3 07\"}}" },
-  { "topic": "/devices/wb-mdm3_07/controls/Channel 1/meta",                       "payload": "{\"type\":\"range\",\"min\":0,\"max\":255,\"order\":1,\"readonly\":false}" },
-  { "topic": "/devices/wb-mdm3_07/controls/Channel 1",                            "payload": "128" },
-  { "topic": "/devices/wb-mdm3_07/controls/Channel 2/meta",                       "payload": "{\"type\":\"range\",\"min\":0,\"max\":255,\"order\":2,\"readonly\":false}" },
-  { "topic": "/devices/wb-mdm3_07/controls/Channel 2",                            "payload": "0" },
-  { "topic": "/devices/wb-mdm3_07/controls/Channel 3/meta",                       "payload": "{\"type\":\"range\",\"min\":0,\"max\":255,\"order\":3,\"readonly\":false}" },
-  { "topic": "/devices/wb-mdm3_07/controls/Channel 3",                            "payload": "255" },
+  {
+    "topic": "/devices/wb-mdm3_07/meta",
+    "payload": "{\"driver\":\"wb-mdm3\",\"title\":{\"en\":\"WB-MDM3 07\",\"ru\":\"WB-MDM3 07\"}}"
+  },
+  {
+    "topic": "/devices/wb-mdm3_07/controls/Channel 1/meta",
+    "payload": "{\"type\":\"range\",\"min\":0,\"max\":255,\"order\":1,\"readonly\":false}"
+  },
+  { "topic": "/devices/wb-mdm3_07/controls/Channel 1", "payload": "128" },
+  {
+    "topic": "/devices/wb-mdm3_07/controls/Channel 2/meta",
+    "payload": "{\"type\":\"range\",\"min\":0,\"max\":255,\"order\":2,\"readonly\":false}"
+  },
+  { "topic": "/devices/wb-mdm3_07/controls/Channel 2", "payload": "0" },
+  {
+    "topic": "/devices/wb-mdm3_07/controls/Channel 3/meta",
+    "payload": "{\"type\":\"range\",\"min\":0,\"max\":255,\"order\":3,\"readonly\":false}"
+  },
+  { "topic": "/devices/wb-mdm3_07/controls/Channel 3", "payload": "255" },
 
-  { "topic": "/devices/wb-led_01/meta",                                           "payload": "{\"driver\":\"wb-led\",\"title\":{\"en\":\"WB-LED 01\",\"ru\":\"WB-LED 01\"}}" },
-  { "topic": "/devices/wb-led_01/controls/RGB/meta",                              "payload": "{\"type\":\"rgb\",\"order\":1,\"readonly\":false}" },
-  { "topic": "/devices/wb-led_01/controls/RGB",                                   "payload": "128;0;255" },
+  {
+    "topic": "/devices/wb-led_01/meta",
+    "payload": "{\"driver\":\"wb-led\",\"title\":{\"en\":\"WB-LED 01\",\"ru\":\"WB-LED 01\"}}"
+  },
+  {
+    "topic": "/devices/wb-led_01/controls/RGB/meta",
+    "payload": "{\"type\":\"rgb\",\"order\":1,\"readonly\":false}"
+  },
+  { "topic": "/devices/wb-led_01/controls/RGB", "payload": "128;0;255" },
 
-  { "topic": "/devices/wb-therm_05/meta",                                         "payload": "{\"driver\":\"wb-therm\",\"title\":{\"en\":\"WB-Therm 05\",\"ru\":\"WB-Therm 05\"}}" },
-  { "topic": "/devices/wb-therm_05/controls/temperature/meta",                    "payload": "{\"type\":\"value\",\"units\":\"deg C\",\"order\":1,\"readonly\":true}" },
-  { "topic": "/devices/wb-therm_05/controls/temperature",                         "payload": "22.5" },
-  { "topic": "/devices/wb-therm_05/controls/setpoint/meta",                       "payload": "{\"type\":\"range\",\"units\":\"deg C\",\"min\":5,\"max\":35,\"order\":2,\"readonly\":false}" },
-  { "topic": "/devices/wb-therm_05/controls/setpoint",                            "payload": "21.0" },
-  { "topic": "/devices/wb-therm_05/controls/mode/meta",                           "payload": "{\"type\":\"enum\",\"order\":3,\"readonly\":false,\"enum\":[\"off\",\"heat\",\"cool\",\"auto\"]}" },
-  { "topic": "/devices/wb-therm_05/controls/mode",                                "payload": "heat" }
+  {
+    "topic": "/devices/wb-therm_05/meta",
+    "payload": "{\"driver\":\"wb-therm\",\"title\":{\"en\":\"WB-Therm 05\",\"ru\":\"WB-Therm 05\"}}"
+  },
+  {
+    "topic": "/devices/wb-therm_05/controls/temperature/meta",
+    "payload": "{\"type\":\"value\",\"units\":\"deg C\",\"order\":1,\"readonly\":true}"
+  },
+  { "topic": "/devices/wb-therm_05/controls/temperature", "payload": "22.5" },
+  {
+    "topic": "/devices/wb-therm_05/controls/setpoint/meta",
+    "payload": "{\"type\":\"range\",\"units\":\"deg C\",\"min\":5,\"max\":35,\"order\":2,\"readonly\":false}"
+  },
+  { "topic": "/devices/wb-therm_05/controls/setpoint", "payload": "21.0" },
+  {
+    "topic": "/devices/wb-therm_05/controls/mode/meta",
+    "payload": "{\"type\":\"enum\",\"order\":3,\"readonly\":false,\"enum\":[\"off\",\"heat\",\"cool\",\"auto\"]}"
+  },
+  { "topic": "/devices/wb-therm_05/controls/mode", "payload": "heat" }
 ]

@@ -12,13 +12,16 @@ import {
   MatterbridgeEndpoint,
   PlatformConfig,
   PlatformMatterbridge,
-} from 'matterbridge';
-import { AnsiLogger } from 'matterbridge/logger';
-import { BridgedDeviceBasicInformation, ColorControl } from 'matterbridge/matter/clusters';
-import { waiter } from 'matterbridge/utils';
+} from "matterbridge";
+import { AnsiLogger } from "matterbridge/logger";
+import {
+  BridgedDeviceBasicInformation,
+  ColorControl,
+} from "matterbridge/matter/clusters";
+import { waiter } from "matterbridge/utils";
 
-import { DeviceOverrides, findMapping } from './controlMapping.js';
-import { WbDevice } from './wirenboardTypes.js';
+import { DeviceOverrides, findMapping } from "./controlMapping.js";
+import { GroupingMode, WirenboardDevice } from "./wirenboardDevice.js";
 import {
   ControlErrorEvent,
   ControlMetaEvent,
@@ -28,13 +31,19 @@ import {
   DeviceRemovedEvent,
   WirenboardMqtt,
   WirenboardMqttConfig,
-} from './wirenboardMqtt.js';
-import { GroupingMode, WirenboardDevice } from './wirenboardDevice.js';
+} from "./wirenboardMqtt.js";
+import { WbDevice } from "./wirenboardTypes.js";
 
 // ---------------------------------------------------------------------------
 // Plugin entry point
 // ---------------------------------------------------------------------------
 
+/**
+ *
+ * @param matterbridge
+ * @param log
+ * @param config
+ */
 export default function initializePlugin(
   matterbridge: PlatformMatterbridge,
   log: AnsiLogger,
@@ -65,14 +74,18 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
   public shouldStart = false;
   public shouldConfigure = false;
 
-  constructor(matterbridge: PlatformMatterbridge, log: AnsiLogger, config: PlatformConfig) {
+  constructor(
+    matterbridge: PlatformMatterbridge,
+    log: AnsiLogger,
+    config: PlatformConfig,
+  ) {
     super(matterbridge, log, config);
 
     // Verify Matterbridge version
     if (
       this.verifyMatterbridgeVersion === undefined ||
-      typeof this.verifyMatterbridgeVersion !== 'function' ||
-      !this.verifyMatterbridgeVersion('3.7.0')
+      typeof this.verifyMatterbridgeVersion !== "function" ||
+      !this.verifyMatterbridgeVersion("3.7.0")
     ) {
       throw new Error(
         `This plugin requires Matterbridge version >= "3.7.0". Please update Matterbridge from ${this.matterbridge.matterbridgeVersion} to the latest version in the frontend.`,
@@ -81,27 +94,41 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
 
     // Build MQTT config from platform config
     const mqttConfig: WirenboardMqttConfig = {
-      mqttHost: (config['mqttHost'] as string | undefined) ?? 'localhost',
-      mqttPort: config['mqttPort'] as number | undefined,
-      mqttProtocol: (config['mqttProtocol'] as WirenboardMqttConfig['mqttProtocol']) ?? 'mqtt',
-      mqttUsername: config['mqttUsername'] as string | undefined,
-      mqttPassword: config['mqttPassword'] as string | undefined,
-      mqttCaPath: config['mqttCaPath'] as string | undefined,
-      mqttCertPath: config['mqttCertPath'] as string | undefined,
-      mqttKeyPath: config['mqttKeyPath'] as string | undefined,
+      mqttHost: (config["mqttHost"] as string | undefined) ?? "localhost",
+      mqttPort: config["mqttPort"] as number | undefined,
+      mqttProtocol:
+        (config["mqttProtocol"] as WirenboardMqttConfig["mqttProtocol"]) ??
+        "mqtt",
+      mqttUsername: config["mqttUsername"] as string | undefined,
+      mqttPassword: config["mqttPassword"] as string | undefined,
+      mqttCaPath: config["mqttCaPath"] as string | undefined,
+      mqttCertPath: config["mqttCertPath"] as string | undefined,
+      mqttKeyPath: config["mqttKeyPath"] as string | undefined,
     };
 
     this.mqtt = new WirenboardMqtt(mqttConfig, this.log);
 
     // Subscribe to MQTT events — data accumulates before onStart
-    this.mqtt.on('device-meta', (evt: DeviceMetaEvent) => this.onDeviceMeta(evt));
-    this.mqtt.on('control-meta', (evt: ControlMetaEvent) => this.onControlMeta(evt));
-    this.mqtt.on('control-value', (evt: ControlValueEvent) => this.onControlValue(evt));
-    this.mqtt.on('control-error', (evt: ControlErrorEvent) => this.onControlError(evt));
-    this.mqtt.on('device-error', (evt: DeviceErrorEvent) => this.onDeviceError(evt));
-    this.mqtt.on('device-removed', (evt: DeviceRemovedEvent) => this.onDeviceRemoved(evt));
-    this.mqtt.on('mqtt_connect', () => this.onMqttConnect());
-    this.mqtt.on('mqtt_disconnect', () => this.onMqttDisconnect());
+    this.mqtt.on("device-meta", (evt: DeviceMetaEvent) =>
+      this.onDeviceMeta(evt),
+    );
+    this.mqtt.on("control-meta", (evt: ControlMetaEvent) =>
+      this.onControlMeta(evt),
+    );
+    this.mqtt.on("control-value", (evt: ControlValueEvent) =>
+      this.onControlValue(evt),
+    );
+    this.mqtt.on("control-error", (evt: ControlErrorEvent) =>
+      this.onControlError(evt),
+    );
+    this.mqtt.on("device-error", (evt: DeviceErrorEvent) =>
+      this.onDeviceError(evt),
+    );
+    this.mqtt.on("device-removed", (evt: DeviceRemovedEvent) =>
+      this.onDeviceRemoved(evt),
+    );
+    this.mqtt.on("mqtt_connect", () => this.onMqttConnect());
+    this.mqtt.on("mqtt_disconnect", () => this.onMqttDisconnect());
 
     this.shouldStart = false;
     this.shouldConfigure = false;
@@ -117,7 +144,7 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
   // ---------------------------------------------------------------------------
 
   override async onStart(reason?: string): Promise<void> {
-    this.log.info(`onStart called: ${reason ?? 'none'}`);
+    this.log.info(`onStart called: ${reason ?? "none"}`);
 
     // Always first — wait for storage and selects initialization
     await this.ready;
@@ -125,11 +152,15 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
 
     this.shouldStart = true;
 
-    const maxTimeout = ((this.config['discoveryTimeout'] as number | undefined) ?? 30) * 1000;
+    const maxTimeout =
+      ((this.config["discoveryTimeout"] as number | undefined) ?? 30) * 1000;
 
-    if (this.config['discoveryMode'] === 'static' && Array.isArray(this.config['devices'])) {
+    if (
+      this.config["discoveryMode"] === "static" &&
+      Array.isArray(this.config["devices"])
+    ) {
       // Static mode: wait for each named device to appear in deviceMap
-      const deviceNames = this.config['devices'] as string[];
+      const deviceNames = this.config["devices"] as string[];
       for (const deviceName of deviceNames) {
         const ok = await waiter(
           `device ${deviceName}`,
@@ -140,16 +171,21 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
           false,
         );
         if (!ok) {
-          this.log.warn(`Static discovery: timeout waiting for device '${deviceName}'`);
+          this.log.warn(
+            `Static discovery: timeout waiting for device '${deviceName}'`,
+          );
         }
       }
     } else {
       // Auto mode: idle-based waiter
-      const idleMs = (this.config['discoveryIdleMs'] as number | undefined) ?? 1000;
+      const idleMs =
+        (this.config["discoveryIdleMs"] as number | undefined) ?? 1000;
 
       const ok = await waiter(
-        'WB discovery',
-        () => this.deviceMap.size > 0 && Date.now() - this.lastMetaTimestamp > idleMs,
+        "WB discovery",
+        () =>
+          this.deviceMap.size > 0 &&
+          Date.now() - this.lastMetaTimestamp > idleMs,
         false,
         maxTimeout,
         200,
@@ -166,18 +202,16 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     await this.registerDiscoveredDevices();
 
     // Enable live MQTT→Matter updates immediately after registration.
-    // Also replay retained values as a fallback: if onConfigure is never called
-    // (matterbridge crashes before the 30s configureTimeout fires), Matter attributes
-    // will still reflect the current MQTT state. On first run the Matter server has
-    // not started yet, so setAttribute is not overwritten by persisted state.
+    // Matter server starts asynchronously after onStart() returns, so we cannot call
+    // setAttribute here — endpoints don't have matter.js node assignments yet.
+    // Retained values are replayed in onConfigure() once the server is running.
     this.shouldConfigure = true;
-    this.replayRetainedValues();
   }
 
   override async onConfigure(): Promise<void> {
     await super.onConfigure();
     this.shouldConfigure = true;
-    this.log.info('onConfigure called');
+    this.log.info("onConfigure called");
 
     // Authoritative replay: matter.js may have restored stale persisted attribute
     // values when the server started (between onStart and this onConfigure call).
@@ -189,10 +223,13 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       for (const endpoint of wbDevice.endpoints) {
         if (endpoint.deviceType === coverDevice.code) {
           try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            if (typeof (endpoint as any).setWindowCoveringTargetAsCurrentAndStopped === 'function') {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              await (endpoint as any).setWindowCoveringTargetAsCurrentAndStopped();
+            if (
+              typeof (endpoint as any)
+                .setWindowCoveringTargetAsCurrentAndStopped === "function"
+            ) {
+              await (
+                endpoint as any
+              ).setWindowCoveringTargetAsCurrentAndStopped();
             }
           } catch {
             // ignore if not available
@@ -201,16 +238,16 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
 
         // extendedColorLight: init colorMode to CurrentHueAndCurrentSaturation
         if (endpoint.deviceType === extendedColorLight.code) {
-          try {
-            endpoint.setAttribute(
+          await endpoint
+            .setAttribute(
               ColorControl.Cluster.id,
-              'colorMode',
+              "colorMode",
               ColorControl.ColorMode.CurrentHueAndCurrentSaturation,
               this.log,
-            );
-          } catch {
-            // ignore
-          }
+            )
+            .catch(() => {
+              /* ignore */
+            });
         }
       }
     }
@@ -219,8 +256,8 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
   override async onShutdown(reason?: string): Promise<void> {
     await super.onShutdown(reason);
     await this.mqtt.stop();
-    this.log.info(`onShutdown called: ${reason ?? 'none'}`);
-    if (this.config['unregisterOnShutdown'] === true) {
+    this.log.info(`onShutdown called: ${reason ?? "none"}`);
+    if (this.config["unregisterOnShutdown"] === true) {
       await this.unregisterAllDevices();
     }
   }
@@ -231,10 +268,14 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
 
   private async registerDiscoveredDevices(): Promise<void> {
     // Failsafe check
-    const failsafeCount = this.config['failsafeCount'] as number | undefined;
-    if (failsafeCount !== undefined && failsafeCount > 0 && this.deviceMap.size < failsafeCount) {
+    const failsafeCount = this.config["failsafeCount"] as number | undefined;
+    if (
+      failsafeCount !== undefined &&
+      failsafeCount > 0 &&
+      this.deviceMap.size < failsafeCount
+    ) {
       const ok = await waiter(
-        'failsafe',
+        "failsafe",
         () => this.deviceMap.size >= failsafeCount,
         false,
         60000,
@@ -249,14 +290,20 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     }
 
     const groupingMode: GroupingMode =
-      (this.config['groupingMode'] as GroupingMode | undefined) ?? 'device';
-    const includeHidden = (this.config['includeHidden'] as boolean | undefined) ?? false;
-    const deviceOverridesConfig = this.config['deviceOverrides'] as
+      (this.config["groupingMode"] as GroupingMode | undefined) ?? "device";
+    const includeHidden =
+      (this.config["includeHidden"] as boolean | undefined) ?? false;
+    const deviceOverridesConfig = this.config["deviceOverrides"] as
       | Record<string, Record<string, unknown>>
       | undefined;
 
     for (const [, wbDevice] of this.deviceMap) {
-      await this.registerWbDevice(wbDevice, groupingMode, includeHidden, deviceOverridesConfig);
+      await this.registerWbDevice(
+        wbDevice,
+        groupingMode,
+        includeHidden,
+        deviceOverridesConfig,
+      );
     }
   }
 
@@ -273,14 +320,16 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       findMapping(ctrl.meta, ctrl.name),
     );
     if (!hasMappable) {
-      this.log.info(`No mappable controls for device ${wbDevice.name} — skipping`);
+      this.log.info(
+        `No mappable controls for device ${wbDevice.name} — skipping`,
+      );
       return;
     }
 
     const deviceTitle =
-      typeof wbDevice.meta.title === 'string'
+      typeof wbDevice.meta.title === "string"
         ? wbDevice.meta.title || wbDevice.name
-        : (wbDevice.meta.title.en || wbDevice.name);
+        : wbDevice.meta.title.en || wbDevice.name;
 
     const serial = wbDevice.name;
 
@@ -290,18 +339,25 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     // Register controls for entity whitelist/blacklist UI
     for (const [, ctrl] of wbDevice.controls) {
       const ctrlTitle = ctrl.meta.title
-        ? typeof ctrl.meta.title === 'string'
+        ? typeof ctrl.meta.title === "string"
           ? ctrl.meta.title
           : ctrl.meta.title.en
         : ctrl.name;
-      this.setSelectDeviceEntity(serial, ctrl.name, ctrlTitle ?? ctrl.name, 'control');
+      this.setSelectDeviceEntity(
+        serial,
+        ctrl.name,
+        ctrlTitle ?? ctrl.name,
+        "control",
+      );
     }
 
     // Validate whitelist/blacklist
     if (!this.validateDevice([deviceTitle, serial])) return;
 
     // Resolve device-level overrides
-    const deviceOverrides = deviceOverridesConfig?.[wbDevice.name] as DeviceOverrides | undefined;
+    const deviceOverrides = deviceOverridesConfig?.[wbDevice.name] as
+      | DeviceOverrides
+      | undefined;
 
     // Create WirenboardDevice (builds all endpoints)
     let wbDev: WirenboardDevice;
@@ -316,39 +372,46 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
         deviceOverrides,
       );
     } catch (err) {
-      this.log.error(`Failed to create WirenboardDevice for ${wbDevice.name}: ${String(err)}`);
+      this.log.error(
+        `Failed to create WirenboardDevice for ${wbDevice.name}: ${String(err)}`,
+      );
       return;
     }
 
     if (wbDev.endpoints.length === 0) {
-      this.log.info(`WirenboardDevice ${wbDevice.name} produced no endpoints — skipping`);
+      this.log.info(
+        `WirenboardDevice ${wbDevice.name} produced no endpoints — skipping`,
+      );
       return;
     }
 
     // Determine dominant type for Matterbridge UI label
     const dominantType = this.getDominantType(wbDevice);
 
-    const mqttHost = (this.config['mqttHost'] as string | undefined) ?? 'localhost';
+    const mqttHost =
+      (this.config["mqttHost"] as string | undefined) ?? "localhost";
 
     // Register all endpoints
     for (const endpoint of wbDev.endpoints) {
       endpoint.configUrl = `http://${mqttHost}`;
-      await endpoint.addFixedLabel('composed', dominantType);
+      await endpoint.addFixedLabel("composed", dominantType);
 
       // Warn about device types unsupported in Apple Home
       const appleUnsupported = [
-        'waterValve',
-        'pressureSensor',
-        'flowSensor',
-        'electricalSensor',
-        'airQualitySensor',
-        'smokeCoAlarm',
+        "waterValve",
+        "pressureSensor",
+        "flowSensor",
+        "electricalSensor",
+        "airQualitySensor",
+        "smokeCoAlarm",
       ];
-      const devTypeName = endpoint.deviceType !== undefined
-        ? appleUnsupported.find((n) =>
-            n.toLowerCase() === String(endpoint.deviceType).toLowerCase(),
-          )
-        : undefined;
+      const devTypeName =
+        endpoint.deviceType !== undefined
+          ? appleUnsupported.find(
+              (n) =>
+                n.toLowerCase() === String(endpoint.deviceType).toLowerCase(),
+            )
+          : undefined;
       if (devTypeName) {
         this.log.warn(
           `Device type '${devTypeName}' for ${wbDevice.name} may not be supported by Apple Home`,
@@ -358,17 +421,21 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       try {
         await this.registerDevice(endpoint);
       } catch (err) {
-        this.log.error(`Failed to register endpoint for ${wbDevice.name}: ${String(err)}`);
+        this.log.error(
+          `Failed to register endpoint for ${wbDevice.name}: ${String(err)}`,
+        );
       }
     }
 
     this.wbDevices.set(wbDevice.name, wbDev);
-    this.log.info(`Registered WB device: ${wbDevice.name} (${wbDev.endpoints.length} endpoints)`);
+    this.log.info(
+      `Registered WB device: ${wbDevice.name} (${wbDev.endpoints.length} endpoints)`,
+    );
   }
 
   private replayRetainedValues(): void {
     for (const [key, value] of this.controlValueCache) {
-      const slash = key.indexOf('/');
+      const slash = key.indexOf("/");
       if (slash === -1) continue;
       const deviceName = key.substring(0, slash);
       const controlName = key.substring(slash + 1);
@@ -381,13 +448,19 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
 
   private async registerNewDevice(wbDevice: WbDevice): Promise<void> {
     const groupingMode: GroupingMode =
-      (this.config['groupingMode'] as GroupingMode | undefined) ?? 'device';
-    const includeHidden = (this.config['includeHidden'] as boolean | undefined) ?? false;
-    const deviceOverridesConfig = this.config['deviceOverrides'] as
+      (this.config["groupingMode"] as GroupingMode | undefined) ?? "device";
+    const includeHidden =
+      (this.config["includeHidden"] as boolean | undefined) ?? false;
+    const deviceOverridesConfig = this.config["deviceOverrides"] as
       | Record<string, Record<string, unknown>>
       | undefined;
 
-    await this.registerWbDevice(wbDevice, groupingMode, includeHidden, deviceOverridesConfig);
+    await this.registerWbDevice(
+      wbDevice,
+      groupingMode,
+      includeHidden,
+      deviceOverridesConfig,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -409,7 +482,9 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       if (this.shouldStart) {
         const newDevice = this.deviceMap.get(evt.deviceName)!;
         this.registerNewDevice(newDevice).catch((err: Error) => {
-          this.log.error(`Dynamic registration failed for ${evt.deviceName}: ${err.message}`);
+          this.log.error(
+            `Dynamic registration failed for ${evt.deviceName}: ${err.message}`,
+          );
         });
       }
     }
@@ -422,7 +497,7 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       // Device meta not yet received — create placeholder
       device = {
         name: evt.deviceName,
-        meta: { driver: '', title: evt.deviceName },
+        meta: { driver: "", title: evt.deviceName },
         controls: new Map(),
       };
       this.deviceMap.set(evt.deviceName, device);
@@ -451,7 +526,10 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
 
   private onControlValue(evt: ControlValueEvent): void {
     // Always cache the latest value
-    this.controlValueCache.set(`${evt.deviceName}/${evt.controlName}`, evt.value);
+    this.controlValueCache.set(
+      `${evt.deviceName}/${evt.controlName}`,
+      evt.value,
+    );
 
     // Also update the device model
     const device = this.deviceMap.get(evt.deviceName);
@@ -476,19 +554,18 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       if (control) control.error = evt.error;
     }
 
-    // Flag 'r' = read error → unreachable
-    if (evt.error.includes('r')) {
-      const wbDev = this.wbDevices.get(evt.deviceName);
-      if (wbDev) {
-        wbDev.setReachable(false);
-      }
-    }
-    // Flag 'w' = write error → log warning only
-    if (evt.error.includes('w')) {
+    const wbDev = this.wbDevices.get(evt.deviceName);
+    if (evt.error === "") {
+      // Error cleared → restore reachability
+      if (wbDev) wbDev.setReachable(true);
+    } else if (evt.error === "r" || evt.error === "rp") {
+      // Read error → unreachable
+      if (wbDev) wbDev.setReachable(false);
+    } else if (evt.error.includes("w")) {
+      // Write error → log warning only
       this.log.warn(`Write error on ${evt.deviceName}/${evt.controlName}`);
-    }
-    // Flag 'p' = poll miss → log debug only
-    if (evt.error.includes('p')) {
+    } else if (evt.error.includes("p")) {
+      // Poll miss → log debug only
       this.log.debug(`Poll miss on ${evt.deviceName}/${evt.controlName}`);
     }
   }
@@ -509,7 +586,9 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     if (wbDev) {
       for (const endpoint of wbDev.endpoints) {
         this.unregisterDevice(endpoint).catch((err: Error) => {
-          this.log.error(`Failed to unregister endpoint for ${evt.deviceName}: ${err.message}`);
+          this.log.error(
+            `Failed to unregister endpoint for ${evt.deviceName}: ${err.message}`,
+          );
         });
       }
       this.wbDevices.delete(evt.deviceName);
@@ -517,14 +596,14 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
   }
 
   private onMqttDisconnect(): void {
-    this.log.warn('MQTT disconnected — marking all devices unreachable');
+    this.log.warn("MQTT disconnected — marking all devices unreachable");
     for (const wbDev of this.wbDevices.values()) {
       wbDev.setReachable(false);
     }
   }
 
   private onMqttConnect(): void {
-    this.log.info('MQTT connected — marking all devices reachable');
+    this.log.info("MQTT connected — marking all devices reachable");
     for (const wbDev of this.wbDevices.values()) {
       wbDev.setReachable(true);
     }
@@ -537,6 +616,8 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
   /**
    * Determine the dominant Matter device type for a WB device based on control counts.
    * Returns a UI label string: 'Light', 'Switch', 'Sensor', 'Cover', or 'Climate'.
+   *
+   * @param wbDevice
    */
   private getDominantType(wbDevice: WbDevice): string {
     const counts = { Light: 0, Switch: 0, Sensor: 0, Cover: 0, Climate: 0 };
@@ -544,21 +625,30 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     for (const [, ctrl] of wbDevice.controls) {
       const mapping = findMapping(ctrl.meta, ctrl.name);
       if (!mapping) continue;
-      const typeName = mapping.matterDeviceType.name?.toLowerCase() ?? '';
-      if (typeName.includes('light') || typeName.includes('dimm') || typeName.includes('color')) {
+      const typeName = mapping.matterDeviceType.name?.toLowerCase() ?? "";
+      if (
+        typeName.includes("light") ||
+        typeName.includes("dimm") ||
+        typeName.includes("color")
+      ) {
         counts.Light++;
-      } else if (typeName.includes('cover') || typeName.includes('window')) {
+      } else if (typeName.includes("cover") || typeName.includes("window")) {
         counts.Cover++;
-      } else if (typeName.includes('thermostat') || typeName.includes('fan')) {
+      } else if (typeName.includes("thermostat") || typeName.includes("fan")) {
         counts.Climate++;
-      } else if (typeName.includes('sensor') || typeName.includes('air') || typeName.includes('humidity') || typeName.includes('temp')) {
+      } else if (
+        typeName.includes("sensor") ||
+        typeName.includes("air") ||
+        typeName.includes("humidity") ||
+        typeName.includes("temp")
+      ) {
         counts.Sensor++;
       } else {
         counts.Switch++;
       }
     }
 
-    let dominant: string = 'Switch';
+    let dominant: string = "Switch";
     let max = 0;
     for (const [type, count] of Object.entries(counts)) {
       if (count > max) {
@@ -567,22 +657,5 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       }
     }
     return dominant;
-  }
-
-  private setEndpointReachable(endpoint: MatterbridgeEndpoint, reachable: boolean): void {
-    if (endpoint.maybeNumber !== undefined) {
-      endpoint.setAttribute(
-        BridgedDeviceBasicInformation.Cluster.id,
-        'reachable',
-        reachable,
-        this.log,
-      );
-      endpoint.triggerEvent(
-        BridgedDeviceBasicInformation.Cluster.id,
-        'reachableChanged',
-        { reachableNewValue: reachable },
-        this.log,
-      );
-    }
   }
 }
