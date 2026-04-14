@@ -23,7 +23,8 @@ Wirenboard devices are discovered via standard WB MQTT conventions (`/devices/+/
 - Device overrides: rename, retype, or skip individual controls
 - Composite thermostat detection (setpoint + temperature + mode)
 - Failsafe: refuse startup if fewer than N devices are found (prevents config loss on network issues)
-- Hardware metadata extraction: serial number, firmware version, hardware revision
+- Hardware metadata extraction: serial number, firmware version, hardware revision (peripheral WB devices)
+- **Controller device `system`:** readonly `text` controls (e.g. Short SN, Batch No, manufacturing date) are mapped into Matter **Bridged Device Basic Information** on the Matter node that represents the controller — **when `groupingMode` is `device`**. With **`groupingMode: "control"`**, the plugin does not attach that extended factory snapshot to a single controller node (each control would be its own node); use **`device`** grouping for the controller if you want serial/part number and related fields visible in the app.
 
 ## Prerequisites
 
@@ -209,6 +210,7 @@ One Matter bridged device per WB device. Each control becomes a child endpoint i
 - Fewer Matter nodes — better for controllers with endpoint limits
 - All relays of `wb-mr6c` appear as one device with multiple outlets
 - Recommended for most setups
+- Required if you want full **Bridged Device Basic Information** (factory metadata) on the Wirenboard **controller** device id `system`
 
 ### `groupingMode: "control"`
 
@@ -218,6 +220,17 @@ One Matter bridged device per WB control.
 - Better naming and room assignment in Apple Home / Google Home
 - Reaches Matter endpoint limits faster (~250 total)
 - Recommended when you have few devices but want per-control visibility
+- For WB device **`system`**, extended controller metadata in Matter BI is **not** merged onto one dedicated node (see below); prefer **`device`** grouping for the controller if you rely on that metadata
+
+### Wirenboard controller (`system`) and `groupingMode` (factory metadata in Matter)
+
+The WB MQTT device id **`system`** represents the Wirenboard **controller** (factory info: Short SN, Batch No, firmware strings, etc.). The plugin maps readonly `text` controls from that device into Matter **Bridged Device Basic Information** — but only when it can attach them to **one** Matter bridged device that stands for the whole controller.
+
+- **`groupingMode: "device"`** — there is exactly **one** Matter node per WB device, including `system`. All service controls are **child endpoints** under that node (or the node is root-only if there are no mappable controls). The plugin sets **`systemBiEndpoint`** to that node and writes the extended BI snapshot there. **Use this mode** if you want serial/part number and related fields visible in Apple Home / Google Home for the controller.
+
+- **`groupingMode: "control"`** — each WB control becomes **its own** Matter bridged device. For `system` that means **many** small devices (one per text/control), and there is **no** single “controller” node the plugin currently uses for the **full** extended BI block. Factory metadata is therefore **not** merged into one dedicated controller card in this mode (implementation detail: `systemBiEndpoint` is only set in the `device` aggregation path).
+
+**Practical rule:** need factory/controller info in Matter → **`groupingMode: "device"`** (default). Fine-grained per-control exposure for other WB devices can still be a reason to use `control` elsewhere, but for **`system`** specifically, prefer **`device`**.
 
 ## Advanced
 
@@ -305,9 +318,10 @@ npm run test:verbose # verbose output
 src/
   module.ts            # WirenboardPlatform — entry point, lifecycle
   wirenboardMqtt.ts    # MQTT client, topic parsing, event emitter
-  wirenboardDevice.ts  # Matter endpoint construction, bidirectional state sync
-  wirenboardTypes.ts   # TypeScript interfaces for WB MQTT conventions
-  controlMapping.ts    # WB control type → Matter device type mapping table
+  wirenboardDevice.ts       # Matter endpoint construction, bidirectional state sync
+  systemMetadataMapping.ts  # WB `system` controller → Bridged Device Basic Information
+  wirenboardTypes.ts        # TypeScript interfaces for WB MQTT conventions
+  controlMapping.ts         # WB control type → Matter device type mapping table
 test/
   *.test.ts            # unit tests (Jest)
 ```

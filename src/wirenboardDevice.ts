@@ -12,6 +12,7 @@ import {
   dimmableLight,
   extendedColorLight,
   MatterbridgeEndpoint,
+  onOffOutlet,
   thermostatDevice,
 } from "matterbridge";
 import { AnsiLogger } from "matterbridge/logger";
@@ -45,6 +46,13 @@ import {
   rgbStringToHsv,
   WbToMatterMapping,
 } from "./controlMapping.js";
+import {
+  applyControllerBridgedBiSnapshot,
+  extractHwMetadataForDevice,
+  extractSystemControllerMetadata,
+  type UnifiedHwMetadata,
+  WB_SYSTEM_DEVICE_ID,
+} from "./systemMetadataMapping.js";
 import { WirenboardMqtt } from "./wirenboardMqtt.js";
 import { WbControl, WbControlMeta, WbDevice } from "./wirenboardTypes.js";
 
@@ -96,62 +104,6 @@ const MATTER_NUMBER_NAMESPACE_ID = 7;
  */
 export function isSystemDevice(deviceName: string): boolean {
   return deviceName.startsWith("system__");
-}
-
-// ---------------------------------------------------------------------------
-// HW Metadata detection helpers
-// ---------------------------------------------------------------------------
-
-const HW_SERIAL_KEYWORDS = ["serial"];
-const HW_FW_KEYWORDS = ["fw version", "firmware version", "fw_version"];
-const HW_HW_KEYWORDS = ["hw batch", "hw_batch", "hardware version"];
-
-/**
- *
- * @param name
- * @param keywords
- */
-function matchesKeywords(name: string, keywords: string[]): boolean {
-  const lower = name.toLowerCase();
-  return keywords.some((kw) => lower.includes(kw));
-}
-
-interface HwMetadata {
-  serialNumber?: string;
-  softwareVersionString?: string;
-  hardwareVersionString?: string;
-  /** Control names that were consumed as HW metadata (not to be mapped as endpoints) */
-  consumedControls: Set<string>;
-}
-
-/**
- *
- * @param controls
- */
-function extractHwMetadata(controls: Map<string, WbControl>): HwMetadata {
-  const meta: HwMetadata = { consumedControls: new Set() };
-  for (const [, ctrl] of controls) {
-    if (
-      matchesKeywords(ctrl.name, HW_SERIAL_KEYWORDS) &&
-      ctrl.meta.type === "text"
-    ) {
-      if (ctrl.value !== undefined) meta.serialNumber = ctrl.value;
-      meta.consumedControls.add(ctrl.name);
-    } else if (
-      matchesKeywords(ctrl.name, HW_FW_KEYWORDS) &&
-      ctrl.meta.type === "text"
-    ) {
-      if (ctrl.value !== undefined) meta.softwareVersionString = ctrl.value;
-      meta.consumedControls.add(ctrl.name);
-    } else if (
-      matchesKeywords(ctrl.name, HW_HW_KEYWORDS) &&
-      ctrl.meta.type === "text"
-    ) {
-      if (ctrl.value !== undefined) meta.hardwareVersionString = ctrl.value;
-      meta.consumedControls.add(ctrl.name);
-    }
-  }
-  return meta;
 }
 
 // ---------------------------------------------------------------------------
@@ -328,6 +280,12 @@ export class WirenboardDevice {
     return this.endpoints[0];
   }
 
+  /**
+   * WB `system` device: bridged endpoint that receives controller factory metadata
+   * (Bridged Device Basic Information snapshot).
+   */
+  private systemBiEndpoint?: MatterbridgeEndpoint;
+
   /** noUpdate: echo suppression — when true, skip incoming MQTT updates for 2s */
   private noUpdate = false;
   private noUpdateTimeout: NodeJS.Timeout | undefined;
@@ -372,9 +330,14 @@ export class WirenboardDevice {
     const self = new WirenboardDevice(log, mqtt, wbDevice);
     const deviceTitle = resolveTitle(wbDevice.meta.title, wbDevice.name);
     const deviceName = wbDevice.name;
+    const isSystemControllerDevice = deviceName === WB_SYSTEM_DEVICE_ID;
 
-    // Step 1: Extract HW metadata (Serial, FW Version, HW Batch)
-    const hwMeta = extractHwMetadata(wbDevice.controls);
+    // Step 1: HW metadata — controller (`system`) uses extended BI mapping; others use legacy hints
+    const hwMeta = extractHwMetadataForDevice(
+      deviceName,
+      wbDevice.controls,
+      log.debug.bind(log),
+    );
 
     // Step 2: Detect thermostat composite BEFORE processing individual controls
     const thermostatControls = detectThermostatControls(wbDevice.controls);
@@ -569,6 +532,9 @@ export class WirenboardDevice {
       );
 
       self.endpoints.push(tEndpoint);
+      if (isSystemControllerDevice) {
+        self.systemBiEndpoint = tEndpoint;
+      }
     }
 
     // Step 2.5: Detect and build lighting composite endpoints
@@ -621,9 +587,9 @@ export class WirenboardDevice {
         "Wirenboard",
         wbDevice.meta.driver || "WB Device",
         undefined,
-        hwMeta.softwareVersionString,
+        isSystemControllerDevice ? "1.0.0" : hwMeta.softwareVersionString,
         undefined,
-        hwMeta.hardwareVersionString,
+        isSystemControllerDevice ? "1.0.0" : hwMeta.hardwareVersionString,
       );
       cEndpoint.addRequiredClusterServers();
 
@@ -892,9 +858,19 @@ export class WirenboardDevice {
 
     // Step 4: Build endpoints based on groupingMode
     if (mappableControls.length === 0 && self.endpoints.length === 0) {
-      log.info(
-        `Device ${deviceName} has no mappable controls — skipping registration`,
-      );
+      if (isSystemControllerDevice && hwMeta.consumedControls.size > 0) {
+        self.buildSystemMetadataRootOnly(
+          wbDevice,
+          deviceTitle,
+          hwMeta,
+          vendorId,
+        );
+      } else {
+        log.info(
+          `Device ${deviceName} has no mappable controls — skipping registration`,
+        );
+      }
+      self.applySystemControllerBiSnapshot(wbDevice);
       return self;
     }
 
@@ -917,6 +893,7 @@ export class WirenboardDevice {
       );
     }
 
+    self.applySystemControllerBiSnapshot(wbDevice);
     return self;
   }
 
@@ -928,7 +905,7 @@ export class WirenboardDevice {
     mappableControls: Array<{ ctrl: WbControl; mapping: WbToMatterMapping }>,
     wbDevice: WbDevice,
     deviceTitle: string,
-    hwMeta: HwMetadata,
+    hwMeta: UnifiedHwMetadata,
     vendorId: number,
     _deviceOverrides?: DeviceOverrides,
   ): void {
@@ -957,6 +934,9 @@ export class WirenboardDevice {
       hwMeta.hardwareVersionString,
     );
     rootEndpoint.addRequiredClusterServers();
+    if (wbDevice.name === WB_SYSTEM_DEVICE_ID) {
+      this.systemBiEndpoint = rootEndpoint;
+    }
 
     // Track same-type control counts for semantic tags
     const typeCountMap = new Map<string, number>();
@@ -1042,10 +1022,11 @@ export class WirenboardDevice {
     mappableControls: Array<{ ctrl: WbControl; mapping: WbToMatterMapping }>,
     wbDevice: WbDevice,
     deviceTitle: string,
-    hwMeta: HwMetadata,
+    hwMeta: UnifiedHwMetadata,
     vendorId: number,
   ): void {
     const deviceName = wbDevice.name;
+    const stripFactoryOnSystemControl = wbDevice.name === WB_SYSTEM_DEVICE_ID;
 
     for (const { ctrl, mapping } of mappableControls) {
       const ctrlTitle = ctrl.meta.title
@@ -1064,9 +1045,9 @@ export class WirenboardDevice {
         "Wirenboard",
         wbDevice.meta.driver || "WB Device",
         undefined,
-        hwMeta.softwareVersionString,
+        stripFactoryOnSystemControl ? "1.0.0" : hwMeta.softwareVersionString,
         undefined,
-        hwMeta.hardwareVersionString,
+        stripFactoryOnSystemControl ? "1.0.0" : hwMeta.hardwareVersionString,
       );
 
       if (mapping.matterClusterIds.length > 0) {
@@ -1100,6 +1081,49 @@ export class WirenboardDevice {
 
       this.endpoints.push(endpoint);
     }
+  }
+
+  /**
+   * Root-only bridged device for WB `system` when only controller metadata is present.
+   */
+  private buildSystemMetadataRootOnly(
+    wbDevice: WbDevice,
+    deviceTitle: string,
+    hwMeta: UnifiedHwMetadata,
+    vendorId: number,
+  ): void {
+    const rootEndpoint = new MatterbridgeEndpoint(onOffOutlet, {
+      id: wbDevice.name,
+    });
+    rootEndpoint.createDefaultBridgedDeviceBasicInformationClusterServer(
+      deviceTitle,
+      hwMeta.serialNumber ?? wbDevice.name,
+      vendorId,
+      "Wirenboard",
+      wbDevice.meta.driver || "WB Device",
+      undefined,
+      hwMeta.softwareVersionString,
+      undefined,
+      hwMeta.hardwareVersionString,
+    );
+    rootEndpoint.addRequiredClusterServers();
+    this.systemBiEndpoint = rootEndpoint;
+    this.endpoints.push(rootEndpoint);
+  }
+
+  /**
+   * Push `system` controller factory fields into Bridged Device Basic Information.
+   */
+  private applySystemControllerBiSnapshot(wbDevice: WbDevice): void {
+    if (wbDevice.name !== WB_SYSTEM_DEVICE_ID || !this.systemBiEndpoint) return;
+    applyControllerBridgedBiSnapshot(
+      this.systemBiEndpoint,
+      extractSystemControllerMetadata(
+        wbDevice.controls,
+        this.log.debug.bind(this.log),
+      ),
+      this.log,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -1404,6 +1428,17 @@ export class WirenboardDevice {
         `Echo suppression active — skipping update for ${this.wbDevice.name}/${controlName}`,
       );
       return;
+    }
+
+    if (this.wbDevice.name === WB_SYSTEM_DEVICE_ID && this.systemBiEndpoint) {
+      const meta = extractSystemControllerMetadata(
+        this.wbDevice.controls,
+        this.log.debug.bind(this.log),
+      );
+      if (meta.consumedControls.has(controlName)) {
+        applyControllerBridgedBiSnapshot(this.systemBiEndpoint, meta, this.log);
+        return;
+      }
     }
 
     const entry = this.propertyMap.get(controlName);

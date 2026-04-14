@@ -46,15 +46,16 @@ Use **`--help`** on subcommands for options. After moving or cloning, ensure the
 
 ## Architecture
 
-Five source files:
+Core source files:
 
-| File                      | Role                                                                                                                                                                                                                                                         |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/module.ts`           | `WirenboardPlatform` — Matterbridge `DynamicPlatform` entry point. Handles lifecycle (`onStart`/`onConfigure`/`onShutdown`), MQTT event fan-out, device registration, whitelist/blacklist, `controlValueCache`, retained value replay.                       |
-| `src/wirenboardMqtt.ts`   | `WirenboardMqtt` — MQTT client, topic parser, `EventEmitter`. Emits typed events: `device-meta`, `control-meta`, `control-value`, `control-error`, `device-removed`, `mqtt_connect`, `mqtt_disconnect`.                                                      |
-| `src/wirenboardDevice.ts` | `WirenboardDevice` — builds `MatterbridgeEndpoint` objects from `WbDevice`. Static factory `WirenboardDevice.create()`. Owns `propertyMap` for per-endpoint control routing. Implements `updateFromMqtt()` (MQTT→Matter) and command handlers (Matter→MQTT). |
-| `src/controlMapping.ts`   | Mapping table: WB control type + units → Matter device type + cluster IDs + value converters. `findMapping()` is the main lookup. Also exports CCT converters: `cctRangeToMireds`, `miredsToCtRange`.                                                        |
-| `src/wirenboardTypes.ts`  | TypeScript interfaces: `WbDevice`, `WbControl`, `WbControlMeta`, `WbDeviceMeta`, `WbControlType`.                                                                                                                                                            |
+| File                           | Role                                                                                                                                                                                                                                                                                      |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/module.ts`                | `WirenboardPlatform` — Matterbridge `DynamicPlatform` entry point. Handles lifecycle (`onStart`/`onConfigure`/`onShutdown`), MQTT event fan-out, device registration, whitelist/blacklist, `controlValueCache`, retained value replay.                                                    |
+| `src/wirenboardMqtt.ts`        | `WirenboardMqtt` — MQTT client, topic parser, `EventEmitter`. Emits typed events: `device-meta`, `control-meta`, `control-value`, `control-error`, `device-removed`, `mqtt_connect`, `mqtt_disconnect`.                                                                                   |
+| `src/wirenboardDevice.ts`      | `WirenboardDevice` — builds `MatterbridgeEndpoint` objects from `WbDevice`. Static factory `WirenboardDevice.create()`. Owns `propertyMap` for per-endpoint control routing. Implements `updateFromMqtt()` (MQTT→Matter) and command handlers (Matter→MQTT).                              |
+| `src/systemMetadataMapping.ts` | WB device id **`system`** (controller) only: maps readonly `text` controls (e.g. Short SN, Batch No) to **Bridged Device Basic Information** attributes via `extractSystemControllerMetadata()` / `applyControllerBridgedBiSnapshot()`. Other devices use legacy Serial/FW/HW hints only. |
+| `src/controlMapping.ts`        | Mapping table: WB control type + units → Matter device type + cluster IDs + value converters. `findMapping()` is the main lookup. Also exports CCT converters: `cctRangeToMireds`, `miredsToCtRange`.                                                                                     |
+| `src/wirenboardTypes.ts`       | TypeScript interfaces: `WbDevice`, `WbControl`, `WbControlMeta`, `WbDeviceMeta`, `WbControlType`.                                                                                                                                                                                         |
 
 ### Key data flow
 
