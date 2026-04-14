@@ -289,6 +289,34 @@ describe("groupingMode 'device'", () => {
 });
 
 // ---------------------------------------------------------------------------
+// tagList: always non-empty, uses namespace 7 (Common Number) with sequential tag
+// ---------------------------------------------------------------------------
+
+describe('tagList uses namespace 7 with sequential tag for all endpoints', () => {
+  it('provides consistent tagList for 18 same-type endpoints', async () => {
+    const controls = Array.from({ length: 18 }, (_, i) => makeSwitch(`K${i + 1}`));
+    const wbDevice = makeDevice('wb-mr18', controls);
+    const mqtt = makeMqtt();
+
+    const dev = await WirenboardDevice.create(mockLog, wbDevice, mqtt, 'device', 0xfff1);
+
+    expect(dev.endpoints.length).toBe(1);
+    const root = dev.endpoints[0]!;
+    expect(root.addChildDeviceTypeWithClusterServer).toHaveBeenCalledTimes(18);
+
+    // All endpoints use the same pattern: namespaceId=7, tag=sequential index
+    for (let i = 0; i < 18; i++) {
+      const opts = (root.addChildDeviceTypeWithClusterServer as ReturnType<typeof jest.fn>).mock.calls[i]?.[3] as Record<string, unknown> | undefined;
+      const tags = opts?.tagList as Array<Record<string, unknown>>;
+      expect(tags).toHaveLength(1);
+      expect(tags[0]?.namespaceId).toBe(7);
+      expect(tags[0]?.tag).toBe(i + 1);
+      expect(tags[0]?.label).toBe(`K${i + 1}`);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // groupingMode: 'control'
 // ---------------------------------------------------------------------------
 

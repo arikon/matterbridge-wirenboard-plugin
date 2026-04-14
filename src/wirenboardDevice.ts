@@ -18,7 +18,6 @@ import {
   waterValve,
 } from 'matterbridge';
 import { AnsiLogger } from 'matterbridge/logger';
-import { NumberTag } from 'matterbridge/matter';
 import {
   AirQuality,
   BridgedDeviceBasicInformation,
@@ -59,25 +58,11 @@ interface PropertyMapEntry {
   lastValue: unknown;
 }
 
-/** Number tags for semantic identification of same-type controls */
-const NUMBER_TAGS = [
-  NumberTag.One,
-  NumberTag.Two,
-  NumberTag.Three,
-  NumberTag.Four,
-  NumberTag.Five,
-  NumberTag.Six,
-  NumberTag.Seven,
-  NumberTag.Eight,
-  NumberTag.Nine,
-  NumberTag.Ten,
-  NumberTag.Eleven,
-  NumberTag.Twelve,
-  NumberTag.Thirteen,
-  NumberTag.Fourteen,
-  NumberTag.Fifteen,
-  NumberTag.Sixteen,
-];
+// Matter Common Number namespace (id=7) supports arbitrary tag values.
+// matterbridge exports NumberTag.One...Sixteen as named constants, but the namespace
+// is not limited to 16 — any positive integer works as a tag value.
+// We use raw { namespaceId: 7, tag: N } directly to avoid artificial limits.
+const MATTER_NUMBER_NAMESPACE_ID = 7;
 
 // ---------------------------------------------------------------------------
 // HW Metadata detection helpers
@@ -526,16 +511,14 @@ export class WirenboardDevice {
       typeCountMap.set(typeKey, typeCount);
 
       const childId = `${deviceName}_${ctrl.name}`;
-      const tagList = typeCount <= NUMBER_TAGS.length
-        ? [
-            {
-              mfgCode: null,
-              namespaceId: NUMBER_TAGS[typeCount - 1]!.namespaceId,
-              tag: NUMBER_TAGS[typeCount - 1]!.tag,
-              label: ctrl.name,
-            },
-          ]
-        : [];
+      const tagList = [
+        {
+          mfgCode: null,
+          namespaceId: MATTER_NUMBER_NAMESPACE_ID,
+          tag: typeCount,
+          label: ctrl.name,
+        },
+      ];
 
       const clusterServerIds = mapping.matterClusterIds.length > 0
         ? (mapping.matterClusterIds as [ClusterId, ...ClusterId[]])
