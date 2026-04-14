@@ -164,6 +164,14 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     }
 
     await this.registerDiscoveredDevices();
+
+    // Enable live MQTT→Matter updates immediately after registration.
+    // Also replay retained values as a fallback: if onConfigure is never called
+    // (matterbridge crashes before the 30s configureTimeout fires), Matter attributes
+    // will still reflect the current MQTT state. On first run the Matter server has
+    // not started yet, so setAttribute is not overwritten by persisted state.
+    this.shouldConfigure = true;
+    this.replayRetainedValues();
   }
 
   override async onConfigure(): Promise<void> {
@@ -171,17 +179,10 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     this.shouldConfigure = true;
     this.log.info('onConfigure called');
 
-    // Replay retained values accumulated during discovery
-    for (const [key, value] of this.controlValueCache) {
-      const slash = key.indexOf('/');
-      if (slash === -1) continue;
-      const deviceName = key.substring(0, slash);
-      const controlName = key.substring(slash + 1);
-      const wbDevice = this.wbDevices.get(deviceName);
-      if (wbDevice) {
-        wbDevice.updateFromMqtt(controlName, value);
-      }
-    }
+    // Authoritative replay: matter.js may have restored stale persisted attribute
+    // values when the server started (between onStart and this onConfigure call).
+    // Replaying here ensures fresh MQTT values override any stale persisted state.
+    this.replayRetainedValues();
 
     // coverDevice: set target as current and stopped
     for (const wbDevice of this.wbDevices.values()) {
@@ -363,6 +364,19 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
 
     this.wbDevices.set(wbDevice.name, wbDev);
     this.log.info(`Registered WB device: ${wbDevice.name} (${wbDev.endpoints.length} endpoints)`);
+  }
+
+  private replayRetainedValues(): void {
+    for (const [key, value] of this.controlValueCache) {
+      const slash = key.indexOf('/');
+      if (slash === -1) continue;
+      const deviceName = key.substring(0, slash);
+      const controlName = key.substring(slash + 1);
+      const wbDevice = this.wbDevices.get(deviceName);
+      if (wbDevice) {
+        wbDevice.updateFromMqtt(controlName, value);
+      }
+    }
   }
 
   private async registerNewDevice(wbDevice: WbDevice): Promise<void> {

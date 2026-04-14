@@ -383,6 +383,28 @@ describe('onStart', () => {
     await platform.onStart('test');
     expect(mockFns.registerDevice).not.toHaveBeenCalled();
   });
+
+  it('sets shouldConfigure=true at end of onStart (Fix #3)', async () => {
+    const platform = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig({ discoveryTimeout: 1 }));
+    expect(platform.shouldConfigure).toBe(false);
+    await platform.onStart('test');
+    expect(platform.shouldConfigure).toBe(true);
+  });
+
+  it('forwards live control-value to registered device without onConfigure (Fix #3)', async () => {
+    const platform = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig({ discoveryTimeout: 1, discoveryIdleMs: 5 }));
+    emitMqttEvent('device-meta', { deviceName: 'wb-mr6c_28', meta: { driver: 'wb-mr6c', title: 'WB-MR6C' } });
+    emitMqttEvent('control-meta', { deviceName: 'wb-mr6c_28', controlName: 'K1', meta: { type: 'switch', readonly: false } });
+    await platform.onStart('test');
+
+    const wbDev = platform.wbDevices.get('wb-mr6c_28');
+    expect(wbDev).toBeDefined();
+    const spy = jest.spyOn(wbDev!, 'updateFromMqtt');
+
+    // Live value after onStart — shouldConfigure is now true, so it flows to Matter
+    emitMqttEvent('control-value', { deviceName: 'wb-mr6c_28', controlName: 'K1', value: '0' });
+    expect(spy).toHaveBeenCalledWith('K1', '0');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -400,6 +422,22 @@ describe('onConfigure', () => {
     const platform = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig());
     await platform.onConfigure();
     expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining('onConfigure'));
+  });
+
+  it('replays retained values in onConfigure after onStart (Fix #3)', async () => {
+    const platform = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig({ discoveryTimeout: 1, discoveryIdleMs: 5 }));
+    emitMqttEvent('device-meta', { deviceName: 'wb-mr6c_28', meta: { driver: 'wb-mr6c', title: 'WB-MR6C' } });
+    emitMqttEvent('control-meta', { deviceName: 'wb-mr6c_28', controlName: 'K1', meta: { type: 'switch', readonly: false } });
+    // Retained value arrives before onStart — cached but not applied (shouldConfigure=false)
+    emitMqttEvent('control-value', { deviceName: 'wb-mr6c_28', controlName: 'K1', value: '1' });
+    await platform.onStart('test');
+
+    const wbDev = platform.wbDevices.get('wb-mr6c_28')!;
+    const spy = jest.spyOn(wbDev, 'updateFromMqtt');
+
+    // onConfigure does the authoritative replay — overrides any stale matter.js persisted values
+    await platform.onConfigure();
+    expect(spy).toHaveBeenCalledWith('K1', '1');
   });
 });
 
