@@ -638,6 +638,90 @@ describe("Controls without mapping", () => {
       expect.stringContaining("no mapping"),
     );
   });
+
+  it("logs debug for system__ device when ignoreSystemControls is true (default)", async () => {
+    const controls: WbControl[] = [
+      {
+        name: "SomeText",
+        meta: { type: "text", readonly: true },
+        value: "hello",
+        error: undefined,
+      },
+    ];
+    const wbDevice = makeDevice("system__networks__abc", controls);
+    const mqtt = makeMqtt();
+
+    const dev = await WirenboardDevice.create(
+      mockLog,
+      wbDevice,
+      mqtt,
+      "control",
+      0xfff1,
+    );
+
+    expect(dev.endpoints).toHaveLength(0);
+    expect(mockLog.debug).toHaveBeenCalledWith(
+      expect.stringMatching(/^System device system__networks__abc: skipping unmappable control/),
+    );
+    expect(mockLog.warn).not.toHaveBeenCalled();
+  });
+
+  it("logs warn for system__ device when ignoreSystemControls is false", async () => {
+    const controls: WbControl[] = [
+      {
+        name: "SomeText",
+        meta: { type: "text", readonly: true },
+        value: "hello",
+        error: undefined,
+      },
+    ];
+    const wbDevice = makeDevice("system__networks__abc", controls);
+    const mqtt = makeMqtt();
+
+    const dev = await WirenboardDevice.create(
+      mockLog,
+      wbDevice,
+      mqtt,
+      "control",
+      0xfff1,
+      false,
+      false,
+    );
+
+    expect(dev.endpoints).toHaveLength(0);
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/^System device system__networks__abc: skipping unmappable control/),
+    );
+    expect(mockLog.debug).not.toHaveBeenCalled();
+  });
+
+  it("logs warn for non-system device when ignoreSystemControls is true", async () => {
+    const controls: WbControl[] = [
+      {
+        name: "SomeText",
+        meta: { type: "text", readonly: true },
+        value: "hello",
+        error: undefined,
+      },
+    ];
+    const wbDevice = makeDevice("wb-text", controls);
+    const mqtt = makeMqtt();
+
+    const dev = await WirenboardDevice.create(
+      mockLog,
+      wbDevice,
+      mqtt,
+      "control",
+      0xfff1,
+      false,
+      true,
+    );
+
+    expect(dev.endpoints).toHaveLength(0);
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      expect.stringContaining("no mapping"),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

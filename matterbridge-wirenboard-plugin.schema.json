@@ -134,6 +134,12 @@
       "type": "boolean",
       "default": false
     },
+    "ignoreSystemControls": {
+      "title": "Ignore system device unmapped-control noise",
+      "description": "When true (default), unmappable controls on Wirenboard service devices (names starting with `system__`) log the skip message at debug only. Set to false to use warn for those devices (legacy verbosity). / Если true (по умолчанию), для служебных устройств (`system__*`) сообщение о пропуске немаппируемого контрола — только debug; false — warn, как для остальных устройств.",
+      "type": "boolean",
+      "default": true
+    },
     "devices": {
       "title": "Static Device List",
       "description": "List of WB device IDs to expose when discoveryMode is 'static'. E.g. ['wb-mr6c_123', 'wb-msw-v3_456']. / Список идентификаторов WB-устройств для экспорта в режиме discoveryMode='static'. Например: ['wb-mr6c_123', 'wb-msw-v3_456'].",

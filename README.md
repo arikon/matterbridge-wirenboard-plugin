@@ -78,6 +78,7 @@ Configuration is stored in `~/.matterbridge/matterbridge-wirenboard-plugin.confi
 | `discoveryIdleMs`  | number   | `1000`        | Idle time (ms) on meta-topics before discovery is considered complete             |
 | `groupingMode`     | string   | `"device"`    | `device` — one Matter node per WB device; `control` — one Matter node per control |
 | `includeHidden`    | boolean  | `false`       | Include controls marked hidden in WB meta                                         |
+| `ignoreSystemControls` | boolean | `true`     | When `true`, unmappable controls on `system__*` devices log at **debug** only (dedicated message). Set `false` for **warn** on those skips. |
 | `devices`          | string[] | `[]`          | Device IDs to expose in `static` discovery mode                                   |
 | `whiteList`        | string[] | `[]`          | Only expose listed devices (empty = all)                                          |
 | `blackList`        | string[] | `[]`          | Never expose listed devices                                                       |
@@ -101,6 +102,7 @@ Configuration is stored in `~/.matterbridge/matterbridge-wirenboard-plugin.confi
   "discoveryIdleMs": 1000,
   "groupingMode": "device",
   "includeHidden": false,
+  "ignoreSystemControls": true,
   "whiteList": [],
   "blackList": ["wb-hwmon_0"],
   "deviceOverrides": {},

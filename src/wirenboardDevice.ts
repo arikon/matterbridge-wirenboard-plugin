@@ -94,6 +94,15 @@ interface PropertyMapEntry {
 // We use raw { namespaceId: 7, tag: N } directly to avoid artificial limits.
 const MATTER_NUMBER_NAMESPACE_ID = 7;
 
+/**
+ * Wirenboard service devices use the `system__` name prefix (e.g. `system__networks__…`).
+ *
+ * @param deviceName - WB device id from MQTT
+ */
+export function isSystemDevice(deviceName: string): boolean {
+  return deviceName.startsWith("system__");
+}
+
 // ---------------------------------------------------------------------------
 // HW Metadata detection helpers
 // ---------------------------------------------------------------------------
@@ -352,6 +361,7 @@ export class WirenboardDevice {
    * @param groupingMode - 'device' (one root + children) or 'control' (one per control)
    * @param vendorId - Matter vendor ID
    * @param includeHidden - whether to include controls with meta.hidden = true
+   * @param ignoreSystemControls - when true (default), unmappable controls on `system__*` devices log at debug only
    * @param deviceOverrides - per-control device type overrides from config
    */
   static async create(
@@ -361,6 +371,7 @@ export class WirenboardDevice {
     groupingMode: GroupingMode,
     vendorId: number,
     includeHidden = false,
+    ignoreSystemControls = true,
     deviceOverrides?: DeviceOverrides,
   ): Promise<WirenboardDevice> {
     const self = new WirenboardDevice(log, mqtt, wbDevice);
@@ -871,9 +882,19 @@ export class WirenboardDevice {
 
       const mapping = findMapping(ctrl.meta, ctrl.name, deviceOverrides);
       if (!mapping) {
-        log.warn(
-          `Skipping control ${deviceName}/${ctrl.name}: no mapping for type '${ctrl.meta.type}' units '${ctrl.meta.units ?? ""}'`,
-        );
+        const detail = `type '${ctrl.meta.type}' units '${ctrl.meta.units ?? ""}'`;
+        if (isSystemDevice(deviceName)) {
+          const msg = `System device ${deviceName}: skipping unmappable control '${ctrl.name}' (no Matter mapping for ${detail})`;
+          if (ignoreSystemControls) {
+            log.debug(msg);
+          } else {
+            log.warn(msg);
+          }
+        } else {
+          log.warn(
+            `Skipping control ${deviceName}/${ctrl.name}: no mapping for ${detail}`,
+          );
+        }
         continue;
       }
 

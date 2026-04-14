@@ -49,6 +49,10 @@ Five source files:
 - `device` (default): one `MatterbridgeEndpoint` per WB device, child endpoints per control
 - `control`: one `MatterbridgeEndpoint` per WB control
 
+### Logging: `ignoreSystemControls` (default `true`)
+
+Unmappable controls on service devices (`system__*`) use a dedicated line (`System device <id>: skipping unmappable control …`) at **debug** by default. Set `ignoreSystemControls: false` to log that line at **warn**. Other devices still use `Skipping control … no mapping` at **warn**.
+
 ### Composite detection in `wirenboardDevice.ts`
 
 **Thermostat**: detected when device has `temperature`(readonly) + `setpoint`/`target`(range) controls → single `thermostatDevice` endpoint.

@@ -293,6 +293,8 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       (this.config["groupingMode"] as GroupingMode | undefined) ?? "device";
     const includeHidden =
       (this.config["includeHidden"] as boolean | undefined) ?? false;
+    const ignoreSystemControls =
+      (this.config["ignoreSystemControls"] as boolean | undefined) ?? true;
     const deviceOverridesConfig = this.config["deviceOverrides"] as
       | Record<string, Record<string, unknown>>
       | undefined;
@@ -302,6 +304,7 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
         wbDevice,
         groupingMode,
         includeHidden,
+        ignoreSystemControls,
         deviceOverridesConfig,
       );
     }
@@ -311,6 +314,7 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     wbDevice: WbDevice,
     groupingMode: GroupingMode,
     includeHidden: boolean,
+    ignoreSystemControls: boolean,
     deviceOverridesConfig: Record<string, Record<string, unknown>> | undefined,
   ): Promise<void> {
     if (!wbDevice.name) return;
@@ -369,6 +373,7 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
         groupingMode,
         this.matterbridge.aggregatorVendorId,
         includeHidden,
+        ignoreSystemControls,
         deviceOverrides,
       );
     } catch (err) {
@@ -451,6 +456,8 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       (this.config["groupingMode"] as GroupingMode | undefined) ?? "device";
     const includeHidden =
       (this.config["includeHidden"] as boolean | undefined) ?? false;
+    const ignoreSystemControls =
+      (this.config["ignoreSystemControls"] as boolean | undefined) ?? true;
     const deviceOverridesConfig = this.config["deviceOverrides"] as
       | Record<string, Record<string, unknown>>
       | undefined;
@@ -459,6 +466,7 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       wbDevice,
       groupingMode,
       includeHidden,
+      ignoreSystemControls,
       deviceOverridesConfig,
     );
   }
