@@ -22,6 +22,9 @@ npm run test:typecheck    # type-check test files without emit
 
 # Run a single test file
 npm test -- test/controlMapping.test.ts
+
+# Lint (ESLint on the whole tree; exits non-zero if any warning — --max-warnings=0)
+npm run lint
 ```
 
 ## OpenSpec
