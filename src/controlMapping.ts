@@ -140,9 +140,9 @@ export function hsvToRgbString(hsv: HsvColor): string {
   const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
   const m = v - c;
 
-  let r = 0,
-    g = 0,
-    b = 0;
+  let r: number;
+  let g: number;
+  let b: number;
   if (h < 60) {
     r = c;
     g = x;

@@ -14,14 +14,16 @@ import {
   PlatformMatterbridge,
 } from "matterbridge";
 import { AnsiLogger } from "matterbridge/logger";
-import {
-  BridgedDeviceBasicInformation,
-  ColorControl,
-} from "matterbridge/matter/clusters";
+import { ColorControl } from "matterbridge/matter/clusters";
 import { waiter } from "matterbridge/utils";
 
 import { DeviceOverrides, findMapping } from "./controlMapping.js";
 import { GroupingMode, WirenboardDevice } from "./wirenboardDevice.js";
+
+/** Cover endpoint may expose this helper (matterbridge mock / runtime). */
+type EndpointWithWindowCovering = MatterbridgeEndpoint & {
+  setWindowCoveringTargetAsCurrentAndStopped?: () => Promise<void>;
+};
 import {
   ControlErrorEvent,
   ControlMetaEvent,
@@ -223,13 +225,12 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       for (const endpoint of wbDevice.endpoints) {
         if (endpoint.deviceType === coverDevice.code) {
           try {
+            const ep = endpoint as EndpointWithWindowCovering;
             if (
-              typeof (endpoint as any)
-                .setWindowCoveringTargetAsCurrentAndStopped === "function"
+              typeof ep.setWindowCoveringTargetAsCurrentAndStopped ===
+              "function"
             ) {
-              await (
-                endpoint as any
-              ).setWindowCoveringTargetAsCurrentAndStopped();
+              await ep.setWindowCoveringTargetAsCurrentAndStopped();
             }
           } catch {
             // ignore if not available
@@ -488,12 +489,14 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       });
       // Dynamic registration: if onStart already ran, register new device immediately
       if (this.shouldStart) {
-        const newDevice = this.deviceMap.get(evt.deviceName)!;
-        this.registerNewDevice(newDevice).catch((err: Error) => {
-          this.log.error(
-            `Dynamic registration failed for ${evt.deviceName}: ${err.message}`,
-          );
-        });
+        const newDevice = this.deviceMap.get(evt.deviceName);
+        if (newDevice) {
+          this.registerNewDevice(newDevice).catch((err: Error) => {
+            this.log.error(
+              `Dynamic registration failed for ${evt.deviceName}: ${err.message}`,
+            );
+          });
+        }
       }
     }
   }

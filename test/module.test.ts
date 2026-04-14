@@ -307,7 +307,7 @@ jest.unstable_mockModule("matterbridge/utils", () => ({
     // Poll condition up to 10 times with 1ms delay to allow idle time to elapse
     for (let i = 0; i < 10; i++) {
       if (condition()) return true;
-      await new Promise((r) => setTimeout(r, 1));
+      await new Promise((resolve) => setTimeout(resolve, 1));
     }
     return false;
   }),

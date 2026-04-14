@@ -379,6 +379,7 @@ describe("d. Reconnect", () => {
 
     // mqtt_connect fires on the reconnect (WirenboardMqtt's listener catches it this time)
     await waitForEvent(localMqtt, "mqtt_connect", 15000);
+    expect(server2.listening).toBe(true);
 
     await localMqtt.stop();
     await stopBroker(broker2, server2);

@@ -661,7 +661,9 @@ describe("Controls without mapping", () => {
 
     expect(dev.endpoints).toHaveLength(0);
     expect(mockLog.debug).toHaveBeenCalledWith(
-      expect.stringMatching(/^System device system__networks__abc: skipping unmappable control/),
+      expect.stringMatching(
+        /^System device system__networks__abc: skipping unmappable control/,
+      ),
     );
     expect(mockLog.warn).not.toHaveBeenCalled();
   });
@@ -690,7 +692,9 @@ describe("Controls without mapping", () => {
 
     expect(dev.endpoints).toHaveLength(0);
     expect(mockLog.warn).toHaveBeenCalledWith(
-      expect.stringMatching(/^System device system__networks__abc: skipping unmappable control/),
+      expect.stringMatching(
+        /^System device system__networks__abc: skipping unmappable control/,
+      ),
     );
     expect(mockLog.debug).not.toHaveBeenCalled();
   });

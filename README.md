@@ -63,28 +63,28 @@ Configuration is stored in `~/.matterbridge/matterbridge-wirenboard-plugin.confi
 
 ### All options
 
-| Field              | Type     | Default       | Description                                                                       |
-| ------------------ | -------- | ------------- | --------------------------------------------------------------------------------- |
-| `mqttHost`         | string   | `"localhost"` | MQTT broker hostname or IP                                                        |
-| `mqttPort`         | number   | `1883`        | MQTT broker port                                                                  |
-| `mqttUsername`     | string   | `""`          | MQTT username (leave empty if not required)                                       |
-| `mqttPassword`     | string   | `""`          | MQTT password                                                                     |
-| `mqttProtocol`     | string   | `"mqtt"`      | Transport: `mqtt`, `mqtts`, `ws`, `wss`                                           |
-| `mqttCaPath`       | string   | `""`          | Path to CA certificate (PEM) for TLS                                              |
-| `mqttCertPath`     | string   | `""`          | Path to client certificate (PEM) for mutual TLS                                   |
-| `mqttKeyPath`      | string   | `""`          | Path to client private key (PEM) for mutual TLS                                   |
-| `discoveryMode`    | string   | `"auto"`      | `auto` — subscribe and discover; `static` — use `devices` list only               |
-| `discoveryTimeout` | number   | `30`          | Max seconds to wait for discovery (auto mode)                                     |
-| `discoveryIdleMs`  | number   | `1000`        | Idle time (ms) on meta-topics before discovery is considered complete             |
-| `groupingMode`     | string   | `"device"`    | `device` — one Matter node per WB device; `control` — one Matter node per control |
-| `includeHidden`    | boolean  | `false`       | Include controls marked hidden in WB meta                                         |
-| `ignoreSystemControls` | boolean | `true`     | When `true`, unmappable controls on `system__*` devices log at **debug** only (dedicated message). Set `false` for **warn** on those skips. |
-| `devices`          | string[] | `[]`          | Device IDs to expose in `static` discovery mode                                   |
-| `whiteList`        | string[] | `[]`          | Only expose listed devices (empty = all)                                          |
-| `blackList`        | string[] | `[]`          | Never expose listed devices                                                       |
-| `deviceOverrides`  | object   | `{}`          | Per-device overrides (see [Advanced](#advanced))                                  |
-| `failsafeCount`    | number   | `0`           | Min devices required on startup (0 = disabled)                                    |
-| `debug`            | boolean  | `false`       | Enable verbose debug logging                                                      |
+| Field                  | Type     | Default       | Description                                                                                                                                 |
+| ---------------------- | -------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mqttHost`             | string   | `"localhost"` | MQTT broker hostname or IP                                                                                                                  |
+| `mqttPort`             | number   | `1883`        | MQTT broker port                                                                                                                            |
+| `mqttUsername`         | string   | `""`          | MQTT username (leave empty if not required)                                                                                                 |
+| `mqttPassword`         | string   | `""`          | MQTT password                                                                                                                               |
+| `mqttProtocol`         | string   | `"mqtt"`      | Transport: `mqtt`, `mqtts`, `ws`, `wss`                                                                                                     |
+| `mqttCaPath`           | string   | `""`          | Path to CA certificate (PEM) for TLS                                                                                                        |
+| `mqttCertPath`         | string   | `""`          | Path to client certificate (PEM) for mutual TLS                                                                                             |
+| `mqttKeyPath`          | string   | `""`          | Path to client private key (PEM) for mutual TLS                                                                                             |
+| `discoveryMode`        | string   | `"auto"`      | `auto` — subscribe and discover; `static` — use `devices` list only                                                                         |
+| `discoveryTimeout`     | number   | `30`          | Max seconds to wait for discovery (auto mode)                                                                                               |
+| `discoveryIdleMs`      | number   | `1000`        | Idle time (ms) on meta-topics before discovery is considered complete                                                                       |
+| `groupingMode`         | string   | `"device"`    | `device` — one Matter node per WB device; `control` — one Matter node per control                                                           |
+| `includeHidden`        | boolean  | `false`       | Include controls marked hidden in WB meta                                                                                                   |
+| `ignoreSystemControls` | boolean  | `true`        | When `true`, unmappable controls on `system__*` devices log at **debug** only (dedicated message). Set `false` for **warn** on those skips. |
+| `devices`              | string[] | `[]`          | Device IDs to expose in `static` discovery mode                                                                                             |
+| `whiteList`            | string[] | `[]`          | Only expose listed devices (empty = all)                                                                                                    |
+| `blackList`            | string[] | `[]`          | Never expose listed devices                                                                                                                 |
+| `deviceOverrides`      | object   | `{}`          | Per-device overrides (see [Advanced](#advanced))                                                                                            |
+| `failsafeCount`        | number   | `0`           | Min devices required on startup (0 = disabled)                                                                                              |
+| `debug`                | boolean  | `false`       | Enable verbose debug logging                                                                                                                |
 
 ### Example config
 

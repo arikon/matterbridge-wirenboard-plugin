@@ -5,6 +5,7 @@ Wirenboard -- контроллер автоматизации зданий, вс
 Архитектурно плагин следует паттернам существующих matterbridge-плагинов (zigbee2mqtt, shelly) — extends `MatterbridgeDynamicPlatform`, lifecycle через `onStart`/`onConfigure`/`onShutdown`, idle-based discovery.
 
 **Ключевые ограничения:**
+
 - Matterbridge API >= 3.7.0 (обязательная проверка в конструкторе)
 - Matter: лимит ~250 endpoints на bridge
 - WB MQTT: retained messages, JSON и legacy subtopic meta-форматы, deprecated control types
@@ -13,6 +14,7 @@ Wirenboard -- контроллер автоматизации зданий, вс
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Автоматическое обнаружение всех WB-устройств через MQTT retained messages
 - Полный маппинг актуальных и deprecated типов контролов WB на Matter device types
 - Двунаправленная синхронизация состояний с echo suppression
@@ -22,6 +24,7 @@ Wirenboard -- контроллер автоматизации зданий, вс
 - Graceful handling: reconnect, error flags, dynamic registration
 
 **Non-Goals:**
+
 - MQTT RPC (`/rpc/v1/`) -- не используется в v1
 - Firmware update устройств через Matter OTA
 - Кастомные Matter кластеры для WB-специфичных функций
@@ -58,6 +61,7 @@ Wirenboard -- контроллер автоматизации зданий, вс
 ### 5. Накопление данных до onStart, replay в onConfigure, shouldConfigure в onStart
 
 **Выбор:**
+
 - В конструкторе: MQTT подключается, retained messages накапливаются в `deviceMap` и `controlValueCache`
 - В `onStart()`: ожидание idle → `registerDevices()` → `shouldConfigure=true`
 - В `onConfigure()`: `replayRetainedValues()` применяет cached values к Matter-атрибутам (authoritative override stale persisted state)
@@ -87,6 +91,7 @@ Wirenboard -- контроллер автоматизации зданий, вс
 ### 9. Name-based маппинг с приоритетами
 
 **Выбор:** Приоритет определения Matter device type:
+
 1. `deviceOverrides` в конфиге (безусловно)
 2. Substring match по имени контрола (case-insensitive): valve→waterValve, lock→doorLockDevice и т.д.
 3. Fallback по `meta.type`: switch→onOffOutlet, alarm→contactSensor, range→dimmableLight
@@ -152,17 +157,18 @@ src/
 
 ## Controller Compatibility
 
-| Controller | Endpoint Limit | Known Quirks |
-|-----------|---------------|--------------|
-| Apple Home | ~149 | Composed devices (device mode) могут работать нестабильно; waterValve, pressureSensor, electricalSensor не отображаются |
-| Google Home | ~250 | Полная поддержка composed devices |
-| Amazon Alexa | ~50 | Инвертированные шторы (WindowCovering) могут работать некорректно |
+| Controller   | Endpoint Limit | Known Quirks                                                                                                            |
+| ------------ | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Apple Home   | ~149           | Composed devices (device mode) могут работать нестабильно; waterValve, pressureSensor, electricalSensor не отображаются |
+| Google Home  | ~250           | Полная поддержка composed devices                                                                                       |
+| Amazon Alexa | ~50            | Инвертированные шторы (WindowCovering) могут работать некорректно                                                       |
 
 При регистрации device types, не поддерживаемых контроллерами — логировать warning.
 
 ## Matter 1.5 Roadmap (out of scope for v1)
 
 Следующие device types появятся в matter.js при поддержке Matter 1.5 и могут быть добавлены в будущих версиях:
+
 - `soilMoistureSensor` / `soilTemperatureSensor` — для WB датчиков почвы
 - `closureSensor` / `closurePanel` — для WB контактных датчиков
 - `irrigationSystem` — для WB контроллеров полива

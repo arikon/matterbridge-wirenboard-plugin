@@ -8,16 +8,11 @@
 import {
   airQualitySensor,
   colorTemperatureLight,
-  coverDevice,
   DeviceTypeDefinition,
   dimmableLight,
-  doorLockDevice,
   extendedColorLight,
-  fanDevice,
-  genericSwitch,
   MatterbridgeEndpoint,
   thermostatDevice,
-  waterValve,
 } from "matterbridge";
 import { AnsiLogger } from "matterbridge/logger";
 import {
@@ -36,8 +31,8 @@ import { ClusterId } from "matterbridge/matter/types";
 
 import {
   cctRangeToMireds,
-  classifyCO2,
   clampLevelControlCurrentLevel,
+  classifyCO2,
   DeviceOverrides,
   findMapping,
   HsvColor,
@@ -364,7 +359,7 @@ export class WirenboardDevice {
    * @param ignoreSystemControls - when true (default), unmappable controls on `system__*` devices log at debug only
    * @param deviceOverrides - per-control device type overrides from config
    */
-  static async create(
+  static create(
     log: AnsiLogger,
     wbDevice: WbDevice,
     mqtt: WirenboardMqtt,
@@ -373,7 +368,7 @@ export class WirenboardDevice {
     includeHidden = false,
     ignoreSystemControls = true,
     deviceOverrides?: DeviceOverrides,
-  ): Promise<WirenboardDevice> {
+  ): WirenboardDevice {
     const self = new WirenboardDevice(log, mqtt, wbDevice);
     const deviceTitle = resolveTitle(wbDevice.meta.title, wbDevice.name);
     const deviceName = wbDevice.name;
@@ -668,7 +663,11 @@ export class WirenboardDevice {
             ),
           reverseConverter: (v) =>
             String(
-              levelControlToRange(v as number, bMeta.min ?? 0, bMeta.max ?? 100),
+              levelControlToRange(
+                v as number,
+                bMeta.min ?? 0,
+                bMeta.max ?? 100,
+              ),
             ),
         },
         lastValue: undefined,
@@ -748,31 +747,28 @@ export class WirenboardDevice {
       cEndpoint.addCommandHandler("off", () => {
         self.handleMatterCommand(deviceName, switchName, "0");
       });
-      cEndpoint.addCommandHandler("toggle", async () => {
+      cEndpoint.addCommandHandler("toggle", () => {
         const entry = self.propertyMap.get(switchName);
         const current = entry?.lastValue as boolean | undefined;
         self.handleMatterCommand(deviceName, switchName, current ? "0" : "1");
       });
-      cEndpoint.addCommandHandler(
-        "moveToLevel",
-        async ({ request: { level } }) => {
-          const bEntry = self.propertyMap.get(brightnessControl.name);
-          if (bEntry?.mapping.reverseConverter) {
-            const val = bEntry.mapping.reverseConverter(level, bMeta);
-            self.handleMatterCommand(
-              deviceName,
-              brightnessControl.name,
-              String(val),
-            );
-          }
-        },
-      );
+      cEndpoint.addCommandHandler("moveToLevel", ({ request: { level } }) => {
+        const bEntry = self.propertyMap.get(brightnessControl.name);
+        if (bEntry?.mapping.reverseConverter) {
+          const val = bEntry.mapping.reverseConverter(level, bMeta);
+          self.handleMatterCommand(
+            deviceName,
+            brightnessControl.name,
+            String(val),
+          );
+        }
+      });
 
       if (lightType === "colorTemperature" && temperatureControl) {
         const tEntry = self.propertyMap.get(temperatureControl.name);
         cEndpoint.addCommandHandler(
           "moveToColorTemperature",
-          async ({ request: { colorTemperatureMireds } }) => {
+          ({ request: { colorTemperatureMireds } }) => {
             if (tEntry?.mapping.reverseConverter) {
               const val = tEntry.mapping.reverseConverter(
                 colorTemperatureMireds,
@@ -789,23 +785,16 @@ export class WirenboardDevice {
       }
 
       if (lightType === "extendedColor" && hueControl && saturationControl) {
-        cEndpoint.addCommandHandler(
-          "moveToHue",
-          async ({ request: { hue } }) => {
-            const hEntry = self.propertyMap.get(hueControl.name);
-            if (hEntry?.mapping.reverseConverter) {
-              const val = hEntry.mapping.reverseConverter(hue, hueControl.meta);
-              self.handleMatterCommand(
-                deviceName,
-                hueControl.name,
-                String(val),
-              );
-            }
-          },
-        );
+        cEndpoint.addCommandHandler("moveToHue", ({ request: { hue } }) => {
+          const hEntry = self.propertyMap.get(hueControl.name);
+          if (hEntry?.mapping.reverseConverter) {
+            const val = hEntry.mapping.reverseConverter(hue, hueControl.meta);
+            self.handleMatterCommand(deviceName, hueControl.name, String(val));
+          }
+        });
         cEndpoint.addCommandHandler(
           "moveToSaturation",
-          async ({ request: { saturation } }) => {
+          ({ request: { saturation } }) => {
             const sEntry = self.propertyMap.get(saturationControl.name);
             if (sEntry?.mapping.reverseConverter) {
               const val = sEntry.mapping.reverseConverter(
@@ -822,7 +811,7 @@ export class WirenboardDevice {
         );
         cEndpoint.addCommandHandler(
           "moveToHueAndSaturation",
-          async ({ request: { hue, saturation } }) => {
+          ({ request: { hue, saturation } }) => {
             const hEntry = self.propertyMap.get(hueControl.name);
             const sEntry = self.propertyMap.get(saturationControl.name);
             if (hEntry?.mapping.reverseConverter) {
@@ -910,7 +899,7 @@ export class WirenboardDevice {
     }
 
     if (groupingMode === "device") {
-      await self.buildDeviceGrouping(
+      self.buildDeviceGrouping(
         mappableControls,
         wbDevice,
         deviceTitle,
@@ -919,7 +908,7 @@ export class WirenboardDevice {
         deviceOverrides,
       );
     } else {
-      await self.buildControlGrouping(
+      self.buildControlGrouping(
         mappableControls,
         wbDevice,
         deviceTitle,
@@ -935,21 +924,23 @@ export class WirenboardDevice {
   // groupingMode: 'device' — one root + child endpoints
   // ---------------------------------------------------------------------------
 
-  private async buildDeviceGrouping(
+  private buildDeviceGrouping(
     mappableControls: Array<{ ctrl: WbControl; mapping: WbToMatterMapping }>,
     wbDevice: WbDevice,
     deviceTitle: string,
     hwMeta: HwMetadata,
     vendorId: number,
     _deviceOverrides?: DeviceOverrides,
-  ): Promise<void> {
+  ): void {
     if (mappableControls.length === 0) return;
 
     const deviceName = wbDevice.name;
 
     // Determine dominant device type for root endpoint
     // Use first control's device type or onOffOutlet fallback
-    const dominantType = mappableControls[0]!.mapping.matterDeviceType;
+    const firstMappable = mappableControls[0];
+    if (!firstMappable) return;
+    const dominantType = firstMappable.mapping.matterDeviceType;
 
     const rootEndpoint = new MatterbridgeEndpoint(dominantType, {
       id: deviceName,
@@ -1047,13 +1038,13 @@ export class WirenboardDevice {
   // groupingMode: 'control' — separate endpoint per control
   // ---------------------------------------------------------------------------
 
-  private async buildControlGrouping(
+  private buildControlGrouping(
     mappableControls: Array<{ ctrl: WbControl; mapping: WbToMatterMapping }>,
     wbDevice: WbDevice,
     deviceTitle: string,
     hwMeta: HwMetadata,
     vendorId: number,
-  ): Promise<void> {
+  ): void {
     const deviceName = wbDevice.name;
 
     for (const { ctrl, mapping } of mappableControls) {
@@ -1168,7 +1159,7 @@ export class WirenboardDevice {
           );
         }
       });
-      endpoint.addCommandHandler("toggle", async () => {
+      endpoint.addCommandHandler("toggle", () => {
         const entry = this.propertyMap.get(controlName);
         if (mapping.wbType === "range" || mapping.wbType === "dimmer") {
           const lastLevel = (entry?.lastValue as number | undefined) ?? 0;
@@ -1205,23 +1196,20 @@ export class WirenboardDevice {
 
     // LevelControl
     if (endpoint.hasClusterServer(LevelControl.Cluster.id)) {
-      endpoint.addCommandHandler(
-        "moveToLevel",
-        async ({ request: { level } }) => {
-          if (mapping.wbType === "rgb") {
-            const entry = this.propertyMap.get(controlName);
-            const currentHsv = entry?.lastValue as HsvColor | undefined;
-            const newHsv: HsvColor = {
-              hue: currentHsv?.hue ?? 0,
-              sat: currentHsv?.sat ?? 0,
-              val: level,
-            };
-            publish(hsvToRgbString(newHsv));
-          } else if (mapping.reverseConverter) {
-            publish(String(mapping.reverseConverter(level, ctrlMeta)));
-          }
-        },
-      );
+      endpoint.addCommandHandler("moveToLevel", ({ request: { level } }) => {
+        if (mapping.wbType === "rgb") {
+          const entry = this.propertyMap.get(controlName);
+          const currentHsv = entry?.lastValue as HsvColor | undefined;
+          const newHsv: HsvColor = {
+            hue: currentHsv?.hue ?? 0,
+            sat: currentHsv?.sat ?? 0,
+            val: level,
+          };
+          publish(hsvToRgbString(newHsv));
+        } else if (mapping.reverseConverter) {
+          publish(String(mapping.reverseConverter(level, ctrlMeta)));
+        }
+      });
     }
 
     // ColorControl (HSV)
@@ -1230,22 +1218,19 @@ export class WirenboardDevice {
       mapping.wbType === "rgb"
     ) {
       try {
-        endpoint.addCommandHandler(
-          "moveToHue",
-          async ({ request: { hue } }) => {
-            const entry = this.propertyMap.get(controlName);
-            const currentHsv = entry?.lastValue as HsvColor | undefined;
-            const newHsv: HsvColor = {
-              hue,
-              sat: currentHsv?.sat ?? 0,
-              val: currentHsv?.val ?? 254,
-            };
-            publish(hsvToRgbString(newHsv));
-          },
-        );
+        endpoint.addCommandHandler("moveToHue", ({ request: { hue } }) => {
+          const entry = this.propertyMap.get(controlName);
+          const currentHsv = entry?.lastValue as HsvColor | undefined;
+          const newHsv: HsvColor = {
+            hue,
+            sat: currentHsv?.sat ?? 0,
+            val: currentHsv?.val ?? 254,
+          };
+          publish(hsvToRgbString(newHsv));
+        });
         endpoint.addCommandHandler(
           "moveToSaturation",
-          async ({ request: { saturation } }) => {
+          ({ request: { saturation } }) => {
             const entry = this.propertyMap.get(controlName);
             const currentHsv = entry?.lastValue as HsvColor | undefined;
             const newHsv: HsvColor = {
@@ -1258,7 +1243,7 @@ export class WirenboardDevice {
         );
         endpoint.addCommandHandler(
           "moveToColorTemperature",
-          async ({ request: { colorTemperatureMireds } }) => {
+          ({ request: { colorTemperatureMireds } }) => {
             // Convert mireds to RGB approximation — basic passthrough for WB
             this.log.debug(
               `moveToColorTemperature: ${colorTemperatureMireds} mireds for ${deviceName}/${controlName}`,
@@ -1272,18 +1257,18 @@ export class WirenboardDevice {
 
     // WindowCovering
     if (endpoint.hasClusterServer(WindowCovering.Cluster.id)) {
-      endpoint.addCommandHandler("upOrOpen", async () => {
+      endpoint.addCommandHandler("upOrOpen", () => {
         publish(String(ctrlMeta.max ?? 255));
       });
-      endpoint.addCommandHandler("downOrClose", async () => {
+      endpoint.addCommandHandler("downOrClose", () => {
         publish("0");
       });
-      endpoint.addCommandHandler("stopMotion", async () => {
+      endpoint.addCommandHandler("stopMotion", () => {
         this.log.debug(`stopMotion: ${deviceName}/${controlName}`);
       });
       endpoint.addCommandHandler(
         "goToLiftPercentage",
-        async ({
+        ({
           request: { liftPercent100thsValue },
         }: {
           request: { liftPercent100thsValue: number };
@@ -1301,7 +1286,7 @@ export class WirenboardDevice {
 
     // DoorLock
     if (endpoint.hasClusterServer(DoorLock.Cluster.id)) {
-      endpoint.addCommandHandler("lockDoor", async () => {
+      endpoint.addCommandHandler("lockDoor", () => {
         const val = mapping.reverseConverter
           ? String(
               mapping.reverseConverter(DoorLock.LockState.Locked, ctrlMeta),
@@ -1309,7 +1294,7 @@ export class WirenboardDevice {
           : "1";
         publish(val);
       });
-      endpoint.addCommandHandler("unlockDoor", async () => {
+      endpoint.addCommandHandler("unlockDoor", () => {
         const val = mapping.reverseConverter
           ? String(
               mapping.reverseConverter(DoorLock.LockState.Unlocked, ctrlMeta),
@@ -1321,14 +1306,14 @@ export class WirenboardDevice {
 
     // FanControl
     if (endpoint.hasClusterServer(FanControl.Cluster.id)) {
-      endpoint.addCommandHandler("step", async () => {
+      endpoint.addCommandHandler("step", () => {
         this.log.debug(`Fan step command: ${deviceName}/${controlName}`);
       });
     }
 
     // WaterValve
     if (endpoint.hasClusterServer(ValveConfigurationAndControl.Cluster.id)) {
-      endpoint.addCommandHandler("open", async () => {
+      endpoint.addCommandHandler("open", () => {
         const val = mapping.reverseConverter
           ? String(
               mapping.reverseConverter(
@@ -1339,7 +1324,7 @@ export class WirenboardDevice {
           : "1";
         publish(val);
       });
-      endpoint.addCommandHandler("close", async () => {
+      endpoint.addCommandHandler("close", () => {
         const val = mapping.reverseConverter
           ? String(
               mapping.reverseConverter(
@@ -1363,7 +1348,7 @@ export class WirenboardDevice {
     if (endpoint.hasClusterServer(Thermostat.Cluster.id)) {
       endpoint.addCommandHandler(
         "setpointRaiseLower",
-        async ({
+        ({
           request: { mode, amount },
         }: {
           request: { mode: Thermostat.SetpointRaiseLowerMode; amount: number };
@@ -1389,18 +1374,12 @@ export class WirenboardDevice {
 
     if (modeControlName) {
       const modeEntry = this.propertyMap.get(modeControlName);
-      if (modeEntry?.mapping.reverseConverter) {
+      const reverseConverter = modeEntry?.mapping.reverseConverter;
+      if (modeEntry && reverseConverter) {
         endpoint.addCommandHandler(
           "changeToMode",
-          async ({
-            request: { newMode },
-          }: {
-            request: { newMode: number };
-          }) => {
-            const val = modeEntry.mapping.reverseConverter!(
-              newMode,
-              modeEntry.mapping as never,
-            );
+          ({ request: { newMode } }: { request: { newMode: number } }) => {
+            const val = reverseConverter(newMode, modeEntry.mapping as never);
             this.handleMatterCommand(deviceName, modeControlName, String(val));
           },
         );
@@ -1521,8 +1500,7 @@ export class WirenboardDevice {
       mapping.matterClusterIds.includes(OnOff.Cluster.id)
     ) {
       const wbBrightness = parseFloat(rawValue);
-      const isOn =
-        !Number.isNaN(wbBrightness) && wbBrightness > 0;
+      const isOn = !Number.isNaN(wbBrightness) && wbBrightness > 0;
       void endpoint
         .setAttribute(OnOff.Cluster.id, "onOff", isOn, this.log)
         .catch(() => {

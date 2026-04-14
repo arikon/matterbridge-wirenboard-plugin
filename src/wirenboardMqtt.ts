@@ -80,6 +80,20 @@ const RE_CONTROL_META_SUBTOPIC =
 const RE_CONTROL_VALUE = /^\/devices\/([^/]+)\/controls\/([^/]+)$/;
 const RE_CONTROL_ON = /^\/devices\/([^/]+)\/controls\/([^/]+)\/on$/;
 
+/**
+ * Capture group from `RegExp.exec` — topic patterns above always fill these when they match.
+ *
+ * @param m - Exec array
+ * @param {number} index - 1-based group index
+ */
+function regexGroup(m: RegExpExecArray, index: number): string {
+  const v = m[index];
+  if (v === undefined) {
+    throw new Error(`Missing regex group ${index}`);
+  }
+  return v;
+}
+
 // ---------------------------------------------------------------------------
 // WirenboardMqtt class
 // ---------------------------------------------------------------------------
@@ -214,7 +228,7 @@ export class WirenboardMqtt extends EventEmitter {
     // /devices/<name>/meta
     let m = RE_DEVICE_META.exec(topic);
     if (m) {
-      const deviceName = m[1]!;
+      const deviceName = regexGroup(m, 1);
       if (isEmpty) {
         this.emit("device-removed", {
           deviceName,
@@ -238,7 +252,7 @@ export class WirenboardMqtt extends EventEmitter {
     // /devices/<name>/meta/error
     m = RE_DEVICE_META_ERROR.exec(topic);
     if (m) {
-      const deviceName = m[1]!;
+      const deviceName = regexGroup(m, 1);
       this.emit("device-error", {
         deviceName,
         error: payload,
@@ -249,8 +263,8 @@ export class WirenboardMqtt extends EventEmitter {
     // /devices/<name>/meta/<subtopic> — legacy meta field
     m = RE_DEVICE_META_SUBTOPIC.exec(topic);
     if (m) {
-      const deviceName = m[1]!;
-      const field = m[2]!;
+      const deviceName = regexGroup(m, 1);
+      const field = regexGroup(m, 2);
       const current = this.legacyDeviceMeta.get(deviceName) ?? {};
       if (field === "name")
         (current as Record<string, unknown>)["title"] = payload;
@@ -266,8 +280,8 @@ export class WirenboardMqtt extends EventEmitter {
     // /devices/<name>/controls/<ctrl>/meta
     m = RE_CONTROL_META.exec(topic);
     if (m) {
-      const deviceName = m[1]!;
-      const controlName = m[2]!;
+      const deviceName = regexGroup(m, 1);
+      const controlName = regexGroup(m, 2);
       if (isEmpty) {
         this.emit("control-removed", { deviceName, controlName });
         return;
@@ -292,8 +306,8 @@ export class WirenboardMqtt extends EventEmitter {
     // /devices/<name>/controls/<ctrl>/meta/error
     m = RE_CONTROL_META_ERROR.exec(topic);
     if (m) {
-      const deviceName = m[1]!;
-      const controlName = m[2]!;
+      const deviceName = regexGroup(m, 1);
+      const controlName = regexGroup(m, 2);
       this.emit("control-error", {
         deviceName,
         controlName,
@@ -305,9 +319,9 @@ export class WirenboardMqtt extends EventEmitter {
     // /devices/<name>/controls/<ctrl>/meta/<subtopic> — legacy meta field
     m = RE_CONTROL_META_SUBTOPIC.exec(topic);
     if (m) {
-      const deviceName = m[1]!;
-      const controlName = m[2]!;
-      const field = m[3]!;
+      const deviceName = regexGroup(m, 1);
+      const controlName = regexGroup(m, 2);
+      const field = regexGroup(m, 3);
       const key = `${deviceName}/${controlName}`;
       const current = this.legacyControlMeta.get(key) ?? {};
       switch (field) {
@@ -351,8 +365,8 @@ export class WirenboardMqtt extends EventEmitter {
     // /devices/<name>/controls/<ctrl> — control value
     m = RE_CONTROL_VALUE.exec(topic);
     if (m) {
-      const deviceName = m[1]!;
-      const controlName = m[2]!;
+      const deviceName = regexGroup(m, 1);
+      const controlName = regexGroup(m, 2);
       if (isEmpty) {
         this.emit("control-removed", { deviceName, controlName });
         return;

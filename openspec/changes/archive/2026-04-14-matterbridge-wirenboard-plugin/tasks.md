@@ -2,7 +2,7 @@
 
 - [x] 1.1 Инициализировать npm-проект: `package.json` (name `matterbridge-wirenboard-plugin`, type `module`, dependencies: `mqtt`, `node-ansi-logger`, `node-persist-manager`, devDependencies: matterbridge types)
 - [x] 1.2 Создать `tsconfig.base.json` и `tsconfig.build.json` (target ES2023, module NodeNext, strict mode)
-- [x] 1.3 Создать `.gitignore` (node_modules, dist, *.js, *.d.ts, *.map)
+- [x] 1.3 Создать `.gitignore` (`node_modules`, `dist`, `*.js`, `*.d.ts`, `*.map`)
 - [x] 1.4 Проверить `npm install && npm run build` — компиляция без ошибок
 
 ## 2. TypeScript Types
