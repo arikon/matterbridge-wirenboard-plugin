@@ -473,10 +473,17 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
 
     const mqttHost =
       (this.config["mqttHost"] as string | undefined) ?? "localhost";
+    const wirenboardUrlRaw = this.config["wirenboardUrl"] as string | undefined;
+    const wirenboardUrlTrimmed =
+      typeof wirenboardUrlRaw === "string" ? wirenboardUrlRaw.trim() : "";
+    const resolvedConfigUrl =
+      wirenboardUrlTrimmed.length > 0
+        ? wirenboardUrlTrimmed
+        : `http://${mqttHost}`;
 
     // Register all endpoints
     for (const endpoint of wbDev.endpoints) {
-      endpoint.configUrl = `http://${mqttHost}`;
+      endpoint.configUrl = resolvedConfigUrl;
       await endpoint.addFixedLabel("composed", dominantType);
 
       // Warn about device types unsupported in Apple Home

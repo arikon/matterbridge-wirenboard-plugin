@@ -2,6 +2,7 @@
   "name": "matterbridge-wirenboard-plugin",
   "type": "DynamicPlatform",
   "mqttHost": "localhost",
+  "wirenboardUrl": "",
   "mqttPort": 1883,
   "mqttUsername": "",
   "mqttPassword": "",

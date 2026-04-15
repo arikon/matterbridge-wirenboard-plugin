@@ -23,6 +23,12 @@
       "type": "string",
       "default": "localhost"
     },
+    "wirenboardUrl": {
+      "title": "Wirenboard web UI URL",
+      "description": "Full URL opened from Matterbridge device settings (Url link). Use when the web UI is not at http://&lt;MQTT host&gt; (e.g. HTTPS, reverse proxy, or Matterbridge runs on another machine). Leave empty to use http://&lt;mqttHost&gt;. / Полный URL веб-интерфейса Wiren Board для ссылки «Url» в Matterbridge. Заполните, если UI не доступен по http://&lt;хост MQTT&gt; (HTTPS, прокси, Matterbridge на другой машине). Пусто — используется http://&lt;mqttHost&gt;.",
+      "type": "string",
+      "default": ""
+    },
     "mqttPort": {
       "title": "MQTT Port",
       "description": "MQTT broker port. Default: 1883 for mqtt/ws, 8883 for mqtts/wss. / Порт MQTT-брокера. По умолчанию: 1883 для mqtt/ws, 8883 для mqtts/wss.",

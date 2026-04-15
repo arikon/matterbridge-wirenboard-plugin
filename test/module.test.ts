@@ -681,6 +681,91 @@ describe("onStart", () => {
     expect(mockFns.registerDevice).toHaveBeenCalled();
   });
 
+  it("sets endpoint configUrl from wirenboardUrl when non-empty", async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({
+        discoveryTimeout: 1,
+        discoveryIdleMs: 5,
+        ignoreNetworkPrefixedDevices: false,
+        mqttHost: "192.168.1.1",
+        wirenboardUrl: "https://wb.example:8443/ui",
+      }),
+    );
+    emitMqttEvent("device-meta", {
+      deviceName: "networks",
+      meta: { driver: "networks", title: "Networks" },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "networks",
+      controlName: "wlan0",
+      meta: { type: "switch", readonly: false },
+    });
+    await platform.onStart("test");
+    expect(mockFns.registerDevice).toHaveBeenCalled();
+    const ep = mockFns.registerDevice.mock.calls[0][0] as {
+      configUrl?: string;
+    };
+    expect(ep.configUrl).toBe("https://wb.example:8443/ui");
+  });
+
+  it("sets endpoint configUrl to http://mqttHost when wirenboardUrl is empty", async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({
+        discoveryTimeout: 1,
+        discoveryIdleMs: 5,
+        ignoreNetworkPrefixedDevices: false,
+        mqttHost: "10.0.0.2",
+        wirenboardUrl: "",
+      }),
+    );
+    emitMqttEvent("device-meta", {
+      deviceName: "networks",
+      meta: { driver: "networks", title: "Networks" },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "networks",
+      controlName: "wlan0",
+      meta: { type: "switch", readonly: false },
+    });
+    await platform.onStart("test");
+    const ep = mockFns.registerDevice.mock.calls[0][0] as {
+      configUrl?: string;
+    };
+    expect(ep.configUrl).toBe("http://10.0.0.2");
+  });
+
+  it("treats whitespace-only wirenboardUrl as empty and uses http://mqttHost", async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({
+        discoveryTimeout: 1,
+        discoveryIdleMs: 5,
+        ignoreNetworkPrefixedDevices: false,
+        mqttHost: "10.0.0.3",
+        wirenboardUrl: "   ",
+      }),
+    );
+    emitMqttEvent("device-meta", {
+      deviceName: "networks",
+      meta: { driver: "networks", title: "Networks" },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "networks",
+      controlName: "wlan0",
+      meta: { type: "switch", readonly: false },
+    });
+    await platform.onStart("test");
+    const ep = mockFns.registerDevice.mock.calls[0][0] as {
+      configUrl?: string;
+    };
+    expect(ep.configUrl).toBe("http://10.0.0.3");
+  });
+
   it("registers multiple WB devices in canonical name order (MQTT discovery order independent)", async () => {
     const platform = new WirenboardPlatform(
       mockMatterbridge,
