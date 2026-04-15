@@ -559,6 +559,96 @@ describe("onStart", () => {
     expect(mockFns.registerDevice).not.toHaveBeenCalled();
   });
 
+  it("does not register system__* service devices when ignoreSystemPrefixedDevices is true (default)", async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({ discoveryTimeout: 1, discoveryIdleMs: 5 }),
+    );
+    emitMqttEvent("device-meta", {
+      deviceName: "system__networks__82fd1739-c50b-43b4-be1a-ce87422daaad",
+      meta: { driver: "networks", title: "Networks" },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "system__networks__82fd1739-c50b-43b4-be1a-ce87422daaad",
+      controlName: "wlan0",
+      meta: { type: "switch", readonly: false },
+    });
+    await platform.onStart("test");
+    expect(mockFns.registerDevice).not.toHaveBeenCalled();
+    expect(
+      platform.wbDevices.has(
+        "system__networks__82fd1739-c50b-43b4-be1a-ce87422daaad",
+      ),
+    ).toBe(false);
+  });
+
+  it("registers system__* when ignoreSystemPrefixedDevices is false", async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({
+        discoveryTimeout: 1,
+        discoveryIdleMs: 5,
+        ignoreSystemPrefixedDevices: false,
+      }),
+    );
+    emitMqttEvent("device-meta", {
+      deviceName: "system__networks__82fd1739-c50b-43b4-be1a-ce87422daaad",
+      meta: { driver: "networks", title: "Networks" },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "system__networks__82fd1739-c50b-43b4-be1a-ce87422daaad",
+      controlName: "wlan0",
+      meta: { type: "switch", readonly: false },
+    });
+    await platform.onStart("test");
+    expect(mockFns.registerDevice).toHaveBeenCalled();
+  });
+
+  it("does not register network-prefixed devices when ignoreNetworkPrefixedDevices is true (default)", async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({ discoveryTimeout: 1, discoveryIdleMs: 5 }),
+    );
+    emitMqttEvent("device-meta", {
+      deviceName: "networks",
+      meta: { driver: "networks", title: "Networks" },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "networks",
+      controlName: "wlan0",
+      meta: { type: "switch", readonly: false },
+    });
+    await platform.onStart("test");
+    expect(mockFns.registerDevice).not.toHaveBeenCalled();
+    expect(platform.wbDevices.has("networks")).toBe(false);
+  });
+
+  it("registers network-prefixed devices when ignoreNetworkPrefixedDevices is false", async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({
+        discoveryTimeout: 1,
+        discoveryIdleMs: 5,
+        ignoreNetworkPrefixedDevices: false,
+      }),
+    );
+    emitMqttEvent("device-meta", {
+      deviceName: "networks",
+      meta: { driver: "networks", title: "Networks" },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "networks",
+      controlName: "wlan0",
+      meta: { type: "switch", readonly: false },
+    });
+    await platform.onStart("test");
+    expect(mockFns.registerDevice).toHaveBeenCalled();
+  });
+
   it("sets shouldConfigure=true at end of onStart (Fix #3)", async () => {
     const platform = new WirenboardPlatform(
       mockMatterbridge,

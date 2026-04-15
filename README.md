@@ -79,7 +79,8 @@ Configuration is stored in `~/.matterbridge/matterbridge-wirenboard-plugin.confi
 | `discoveryIdleMs`      | number   | `1000`        | Idle time (ms) on meta-topics before discovery is considered complete                                                                       |
 | `groupingMode`         | string   | `"device"`    | `device` — one Matter node per WB device; `control` — one Matter node per control                                                           |
 | `includeHidden`        | boolean  | `false`       | Include controls marked hidden in WB meta                                                                                                   |
-| `ignoreSystemControls` | boolean  | `true`        | When `true`, unmappable controls on `system__*` devices log at **debug** only (dedicated message). Set `false` for **warn** on those skips. |
+| `ignoreSystemPrefixedDevices` | boolean  | `true`        | When `true`, **does not bridge** Wirenboard service devices whose id starts with `system__` (e.g. `system__networks__…`), and unmappable controls on those devices (if bridged) log at **debug** only. Set `false` to expose `system__*` in Matter and use **warn** for unmappable-control skips there. |
+| `ignoreNetworkPrefixedDevices` | boolean | `true` | When `true`, **does not bridge** devices whose id starts with `network` (e.g. `networks`, `networks_…`). Independent of `ignoreSystemPrefixedDevices`. Set `false` to bridge them. |
 | `devices`              | string[] | `[]`          | Device IDs to expose in `static` discovery mode                                                                                             |
 | `whiteList`            | string[] | `[]`          | Only expose listed devices (empty = all)                                                                                                    |
 | `blackList`            | string[] | `[]`          | Never expose listed devices                                                                                                                 |
@@ -103,7 +104,8 @@ Configuration is stored in `~/.matterbridge/matterbridge-wirenboard-plugin.confi
   "discoveryIdleMs": 1000,
   "groupingMode": "device",
   "includeHidden": false,
-  "ignoreSystemControls": true,
+  "ignoreSystemPrefixedDevices": true,
+  "ignoreNetworkPrefixedDevices": true,
   "whiteList": [],
   "blackList": ["wb-hwmon_0"],
   "deviceOverrides": {},

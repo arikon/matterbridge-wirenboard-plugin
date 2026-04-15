@@ -82,26 +82,35 @@ The system SHALL support `includeHidden` (boolean, default false) controlling wh
 - **WHEN** `includeHidden: true`
 - **THEN** system processes controls with `meta.hidden: true`
 
-### Requirement: Config option `ignoreSystemControls`
+### Requirement: Config option `ignoreSystemPrefixedDevices`
 
-The system SHALL expose `ignoreSystemControls` (boolean, default **`true`** when omitted). For WB device names starting with `system__`, when a control has no mapping the skip message SHALL use **debug** if this option is **true**, and **warn** if **false**. Non-system devices SHALL always use **warn** on this path regardless of the option.
+The system SHALL expose `ignoreSystemPrefixedDevices` (boolean, default **`true`** when omitted).
 
-For **system devices**, the message text SHALL identify the device as a system device and the skipped unmappable control (not the same template as for non-system devices). Non-system devices keep the `Skipping control … no mapping for …` form.
+When **`true`**, WB device names starting with `system__` SHALL NOT be registered as Matter bridged devices (no Matter endpoints for those devices).
 
-#### Scenario: Default quiets system-device skip logs
+When **`false`**, `system__*` devices SHALL be registered like any other device. For those devices, when a control has no mapping the skip message SHALL use **warn** with the system-specific template. When **`true`**, that unmappable-control path does not apply to `system__*` devices because they are not bridged; for non-system devices, unmappable skips SHALL always use **warn** regardless of `ignoreSystemPrefixedDevices`.
 
-- **WHEN** `ignoreSystemControls` is omitted or `true`, the device name starts with `system__`, and a control has no mapping
-- **THEN** the skip message SHALL be logged at **debug** only
+For **system devices** that are bridged (`ignoreSystemPrefixedDevices: false`), the message text SHALL identify the device as a system device and the skipped unmappable control (not the same template as for non-system devices). Non-system devices keep the `Skipping control … no mapping for …` form.
 
-#### Scenario: Legacy verbosity for system devices
+#### Scenario: Default excludes service devices from Matter
 
-- **WHEN** `ignoreSystemControls` is `false` and the device name starts with `system__`
+- **WHEN** `ignoreSystemPrefixedDevices` is omitted or `true` and a discovered device name starts with `system__`
+- **THEN** the plugin SHALL NOT register Matter endpoints for that device
+
+#### Scenario: Opt-in bridging for system devices
+
+- **WHEN** `ignoreSystemPrefixedDevices` is `false` and a device name starts with `system__`
+- **THEN** the plugin MAY register Matter endpoints for that device following the same rules as non-system devices
+
+#### Scenario: Unmappable skip logs when system devices are bridged
+
+- **WHEN** `ignoreSystemPrefixedDevices` is `false`, the device name starts with `system__`, and a control has no mapping
 - **THEN** the skip message SHALL use **warn**, with the system-specific message template
 
 #### Scenario: Read at registration
 
 - **WHEN** devices are registered
-- **THEN** the effective value of `ignoreSystemControls` SHALL be read from platform config and applied on the unmappable-control skip path
+- **THEN** the effective value of `ignoreSystemPrefixedDevices` SHALL be read from platform config and applied (skip Matter registration for `system__*` when **true**; unmappable-control skip path when `system__*` is bridged)
 
 #### Scenario: Non-system wording unchanged
 
@@ -111,7 +120,7 @@ For **system devices**, the message text SHALL identify the device as a system d
 #### Scenario: System device wording
 
 - **WHEN** the device is a system device and a control has no mapping
-- **THEN** the message SHALL use the system-specific template (system device + skipped unmappable control), at **debug** or **warn** per `ignoreSystemControls`
+- **THEN** the message SHALL use the system-specific template (system device + skipped unmappable control), at **debug** or **warn** per `ignoreSystemPrefixedDevices`
 
 ### Requirement: System device identification
 
@@ -126,6 +135,41 @@ The plugin SHALL treat a Wirenboard device as a **system device** for this rule 
 
 - **WHEN** the device name does not start with `system__`
 - **THEN** the device SHALL NOT be classified as a system device for this rule
+
+### Requirement: Config option `ignoreNetworkPrefixedDevices`
+
+The system SHALL expose `ignoreNetworkPrefixedDevices` (boolean, default **`true`** when omitted).
+
+When **`true`**, WB device names that start with the ASCII prefix `network` (case-sensitive) SHALL NOT be registered as Matter bridged devices (no Matter endpoints for those devices).
+
+When **`false`**, such devices SHALL be registered like any other device that passes remaining filters and mapping rules.
+
+This requirement SHALL be independent of `ignoreSystemPrefixedDevices`.
+
+#### Scenario: Default excludes network-prefixed devices
+
+- **WHEN** `ignoreNetworkPrefixedDevices` is omitted or `true` and a discovered device name starts with `network`
+- **THEN** the plugin SHALL NOT register Matter endpoints for that device
+
+#### Scenario: Opt-in bridging for network-prefixed devices
+
+- **WHEN** `ignoreNetworkPrefixedDevices` is `false` and a device name starts with `network`
+- **THEN** the plugin SHALL allow normal registration for that device if other requirements are satisfied
+
+#### Scenario: Read at registration
+
+- **WHEN** devices are registered
+- **THEN** the effective value of `ignoreNetworkPrefixedDevices` SHALL be read from platform config and applied on the Matter registration path
+
+#### Scenario: Prefix matches networks driver style ids
+
+- **WHEN** the device name is `networks` or `networks_abc` or any string starting with `network`
+- **THEN** the device SHALL be treated as network-prefixed for this requirement
+
+#### Scenario: system__ without leading network
+
+- **WHEN** the device name starts with `system__` but not with `network`
+- **THEN** exclusion for that name SHALL follow `ignoreSystemPrefixedDevices` only; `ignoreNetworkPrefixedDevices` SHALL NOT apply based on the `network` prefix rule alone
 
 ### Requirement: Skip message severity for unmappable controls
 

@@ -134,9 +134,15 @@
       "type": "boolean",
       "default": false
     },
-    "ignoreSystemControls": {
-      "title": "Ignore system device unmapped-control noise",
-      "description": "When true (default), unmappable controls on Wirenboard service devices (names starting with `system__`) log the skip message at debug only. Set to false to use warn for those devices (legacy verbosity). / Если true (по умолчанию), для служебных устройств (`system__*`) сообщение о пропуске немаппируемого контрола — только debug; false — warn, как для остальных устройств.",
+    "ignoreSystemPrefixedDevices": {
+      "title": "Ignore Wirenboard service (system__) devices",
+      "description": "When true (default), devices whose id starts with `system__` are not bridged to Matter. When false, they are bridged like other devices; unmappable controls on `system__*` then log at warn (when true, those skip messages are debug-only — relevant only if you set false and still skip some controls). / Если true (по умолчанию), устройства с префиксом `system__` не экспортируются в Matter. Если false — экспортируются; немаппируемые контролы на них при необходимости логируются как warn.",
+      "type": "boolean",
+      "default": true
+    },
+    "ignoreNetworkPrefixedDevices": {
+      "title": "Ignore network-prefixed WB devices",
+      "description": "When true (default), devices whose id starts with `network` (ASCII, case-sensitive; e.g. `networks`, `networks_…`) are not bridged to Matter. Independent of `ignoreSystemPrefixedDevices`. Set false to bridge them. / Если true (по умолчанию), устройства с префиксом `network` не экспортируются в Matter. Независимо от `ignoreSystemPrefixedDevices`. False — экспортировать.",
       "type": "boolean",
       "default": true
     },

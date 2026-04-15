@@ -18,7 +18,11 @@ import { ColorControl } from "matterbridge/matter/clusters";
 import { waiter } from "matterbridge/utils";
 
 import { DeviceOverrides, findMapping } from "./controlMapping.js";
-import { GroupingMode, WirenboardDevice } from "./wirenboardDevice.js";
+import {
+  GroupingMode,
+  isSystemDevice,
+  WirenboardDevice,
+} from "./wirenboardDevice.js";
 
 /** Cover endpoint may expose this helper (matterbridge mock / runtime). */
 type EndpointWithWindowCovering = MatterbridgeEndpoint & {
@@ -35,6 +39,39 @@ import {
   WirenboardMqttConfig,
 } from "./wirenboardMqtt.js";
 import { WbDevice } from "./wirenboardTypes.js";
+
+/** WB device ids for network-related drivers often start with this prefix (e.g. `networks`). */
+function isNetworkPrefixedDevice(deviceName: string): boolean {
+  return deviceName.startsWith("network");
+}
+
+function appliesSystemPrefixedSkip(
+  deviceName: string,
+  ignoreSystemPrefixedDevices: boolean,
+): boolean {
+  return ignoreSystemPrefixedDevices && isSystemDevice(deviceName);
+}
+
+function appliesNetworkPrefixedSkip(
+  deviceName: string,
+  ignoreNetworkPrefixedDevices: boolean,
+): boolean {
+  return ignoreNetworkPrefixedDevices && isNetworkPrefixedDevice(deviceName);
+}
+
+/** Pure predicate: whether this WB device must not be registered as Matter (prefix rules only). */
+function shouldSkipMatterRegistration(
+  deviceName: string,
+  opts: {
+    ignoreSystemPrefixedDevices: boolean;
+    ignoreNetworkPrefixedDevices: boolean;
+  },
+): boolean {
+  return (
+    appliesSystemPrefixedSkip(deviceName, opts.ignoreSystemPrefixedDevices) ||
+    appliesNetworkPrefixedSkip(deviceName, opts.ignoreNetworkPrefixedDevices)
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Plugin entry point
@@ -294,8 +331,12 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       (this.config["groupingMode"] as GroupingMode | undefined) ?? "device";
     const includeHidden =
       (this.config["includeHidden"] as boolean | undefined) ?? false;
-    const ignoreSystemControls =
-      (this.config["ignoreSystemControls"] as boolean | undefined) ?? true;
+    const ignoreSystemPrefixedDevices =
+      (this.config["ignoreSystemPrefixedDevices"] as boolean | undefined) ??
+      true;
+    const ignoreNetworkPrefixedDevices =
+      (this.config["ignoreNetworkPrefixedDevices"] as boolean | undefined) ??
+      true;
     const deviceOverridesConfig = this.config["deviceOverrides"] as
       | Record<string, Record<string, unknown>>
       | undefined;
@@ -305,7 +346,8 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
         wbDevice,
         groupingMode,
         includeHidden,
-        ignoreSystemControls,
+        ignoreSystemPrefixedDevices,
+        ignoreNetworkPrefixedDevices,
         deviceOverridesConfig,
       );
     }
@@ -315,10 +357,28 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     wbDevice: WbDevice,
     groupingMode: GroupingMode,
     includeHidden: boolean,
-    ignoreSystemControls: boolean,
+    ignoreSystemPrefixedDevices: boolean,
+    ignoreNetworkPrefixedDevices: boolean,
     deviceOverridesConfig: Record<string, Record<string, unknown>> | undefined,
   ): Promise<void> {
     if (!wbDevice.name) return;
+
+    const skipOpts = {
+      ignoreSystemPrefixedDevices,
+      ignoreNetworkPrefixedDevices,
+    };
+    if (shouldSkipMatterRegistration(wbDevice.name, skipOpts)) {
+      if (appliesSystemPrefixedSkip(wbDevice.name, ignoreSystemPrefixedDevices)) {
+        this.log.debug(
+          `Skipping Matter registration for Wirenboard service device ${wbDevice.name} (ignoreSystemPrefixedDevices)`,
+        );
+      } else {
+        this.log.debug(
+          `Skipping Matter registration for Wirenboard device ${wbDevice.name} (ignoreNetworkPrefixedDevices)`,
+        );
+      }
+      return;
+    }
 
     // Check if at least one control has a mapping
     const hasMappable = [...wbDevice.controls.values()].some((ctrl) =>
@@ -374,7 +434,7 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
         groupingMode,
         this.matterbridge.aggregatorVendorId,
         includeHidden,
-        ignoreSystemControls,
+        ignoreSystemPrefixedDevices,
         deviceOverrides,
       );
     } catch (err) {
@@ -457,8 +517,12 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       (this.config["groupingMode"] as GroupingMode | undefined) ?? "device";
     const includeHidden =
       (this.config["includeHidden"] as boolean | undefined) ?? false;
-    const ignoreSystemControls =
-      (this.config["ignoreSystemControls"] as boolean | undefined) ?? true;
+    const ignoreSystemPrefixedDevices =
+      (this.config["ignoreSystemPrefixedDevices"] as boolean | undefined) ??
+      true;
+    const ignoreNetworkPrefixedDevices =
+      (this.config["ignoreNetworkPrefixedDevices"] as boolean | undefined) ??
+      true;
     const deviceOverridesConfig = this.config["deviceOverrides"] as
       | Record<string, Record<string, unknown>>
       | undefined;
@@ -467,7 +531,8 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       wbDevice,
       groupingMode,
       includeHidden,
-      ignoreSystemControls,
+      ignoreSystemPrefixedDevices,
+      ignoreNetworkPrefixedDevices,
       deviceOverridesConfig,
     );
   }

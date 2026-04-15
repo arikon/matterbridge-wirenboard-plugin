@@ -639,7 +639,7 @@ describe("Controls without mapping", () => {
     );
   });
 
-  it("logs debug for system__ device when ignoreSystemControls is true (default)", async () => {
+  it("logs debug for system__ device when ignoreSystemPrefixedDevices is true (default)", async () => {
     const controls: WbControl[] = [
       {
         name: "SomeText",
@@ -668,7 +668,7 @@ describe("Controls without mapping", () => {
     expect(mockLog.warn).not.toHaveBeenCalled();
   });
 
-  it("logs warn for system__ device when ignoreSystemControls is false", async () => {
+  it("logs warn for system__ device when ignoreSystemPrefixedDevices is false", async () => {
     const controls: WbControl[] = [
       {
         name: "SomeText",
@@ -699,7 +699,7 @@ describe("Controls without mapping", () => {
     expect(mockLog.debug).not.toHaveBeenCalled();
   });
 
-  it("logs warn for non-system device when ignoreSystemControls is true", async () => {
+  it("logs warn for non-system device when ignoreSystemPrefixedDevices is true", async () => {
     const controls: WbControl[] = [
       {
         name: "SomeText",
