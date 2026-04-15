@@ -275,6 +275,20 @@ export function roundToPrecision(
   return Math.round(value * factor) / factor;
 }
 
+/**
+ * Matter `ElectricalPowerMeasurement.powerFactor`: ±1/100ths of a percent (PF 1.0 → 10000).
+ *
+ * @param ratio Power factor in [-1, 1] or [0, 1]
+ */
+export function ratioToPowerFactorMatter(ratio: number): number {
+  return Math.min(10_000, Math.max(-10_000, Math.round(ratio * 10_000)));
+}
+
+/** Inverse of {@link ratioToPowerFactorMatter}. */
+export function matterPowerFactorToRatio(value: number): number {
+  return value / 10_000;
+}
+
 // ---------------------------------------------------------------------------
 // WindowCovering converter (inverted: WB 0=closed,max=open; Matter 0=open,10000=closed)
 // ---------------------------------------------------------------------------
@@ -586,6 +600,19 @@ export const CONTROL_MAPPINGS: WbToMatterMapping[] = [
     reverseConverter: (v, meta) =>
       String(roundToPrecision((v as number) / 100, meta.precision)),
   },
+  // MAP total harmonic distortion (%): nameKeywords must win over generic humidity `%` (findMapping pass 1).
+  // Bridge proxy: `rmsPower` (mW) holds THD×100 until Harmonics cluster is available on the default server.
+  {
+    wbType: "value",
+    wbUnits: "%",
+    nameKeywords: ["thd", "harm", "harmonic", "hr", "нг"],
+    matterDeviceType: electricalSensor,
+    matterClusterIds: [ElectricalPowerMeasurement.Cluster.id],
+    matterAttribute: "rmsPower",
+    converter: (v) => Math.round(parseFloat(v) * 100),
+    reverseConverter: (v, meta) =>
+      String(roundToPrecision((v as number) / 100, meta.precision)),
+  },
   // Humidity
   {
     wbType: "value",
@@ -704,11 +731,99 @@ export const CONTROL_MAPPINGS: WbToMatterMapping[] = [
   },
   {
     wbType: "value",
+    wbUnits: "var",
+    matterDeviceType: electricalSensor,
+    matterClusterIds: [ElectricalPowerMeasurement.Cluster.id],
+    matterAttribute: "reactivePower",
+    converter: (v) => Math.round(parseFloat(v) * 1000),
+    reverseConverter: (v, meta) =>
+      String(roundToPrecision((v as number) / 1000, meta.precision)),
+  },
+  {
+    wbType: "value",
+    wbUnits: "VA",
+    matterDeviceType: electricalSensor,
+    matterClusterIds: [ElectricalPowerMeasurement.Cluster.id],
+    matterAttribute: "apparentPower",
+    converter: (v) => Math.round(parseFloat(v) * 1000),
+    reverseConverter: (v, meta) =>
+      String(roundToPrecision((v as number) / 1000, meta.precision)),
+  },
+  {
+    wbType: "value",
+    wbUnits: "ratio",
+    matterDeviceType: electricalSensor,
+    matterClusterIds: [ElectricalPowerMeasurement.Cluster.id],
+    matterAttribute: "powerFactor",
+    converter: (v) => ratioToPowerFactorMatter(parseFloat(v)),
+    reverseConverter: (v, meta) =>
+      String(
+        roundToPrecision(matterPowerFactorToRatio(v as number), meta.precision),
+      ),
+  },
+  {
+    wbType: "value",
+    wbUnits: "Hz",
+    matterDeviceType: electricalSensor,
+    matterClusterIds: [ElectricalPowerMeasurement.Cluster.id],
+    matterAttribute: "frequency",
+    /** WB hertz → Matter millihertz (1 Hz = 1000 mHz). */
+    converter: (v) => Math.round(parseFloat(v) * 1000),
+    reverseConverter: (v, meta) =>
+      String(roundToPrecision((v as number) / 1000, meta.precision)),
+  },
+  // AC phase angle (°): bridge proxy — millidegrees stored in `rmsCurrent` (mA-typed field).
+  {
+    wbType: "value",
+    wbUnits: "deg",
+    matterDeviceType: electricalSensor,
+    matterClusterIds: [ElectricalPowerMeasurement.Cluster.id],
+    matterAttribute: "rmsCurrent",
+    converter: (v) => Math.round(parseFloat(v) * 1000),
+    reverseConverter: (v, meta) =>
+      String(roundToPrecision((v as number) / 1000, meta.precision)),
+  },
+  {
+    wbType: "value",
     wbUnits: "kWh",
     matterDeviceType: electricalSensor,
     matterClusterIds: [ElectricalEnergyMeasurement.Cluster.id],
     matterAttribute: "cumulativeEnergyImported",
     /** Matter `EnergyMeasurement` struct — not a bare number (see ElectricalEnergyMeasurement cluster). */
+    converter: (v) => ({
+      energy: Math.round(parseFloat(v) * 1_000_000),
+    }),
+    reverseConverter: (v, meta) => {
+      const raw =
+        typeof v === "object" && v !== null && "energy" in v
+          ? (v as { energy: number }).energy
+          : (v as number);
+      return String(roundToPrecision(raw / 1_000_000, meta.precision));
+    },
+  },
+  {
+    wbType: "value",
+    wbUnits: "kvarh",
+    matterDeviceType: electricalSensor,
+    matterClusterIds: [ElectricalEnergyMeasurement.Cluster.id],
+    matterAttribute: "cumulativeEnergyImported",
+    converter: (v) => ({
+      energy: Math.round(parseFloat(v) * 1_000_000),
+    }),
+    reverseConverter: (v, meta) => {
+      const raw =
+        typeof v === "object" && v !== null && "energy" in v
+          ? (v as { energy: number }).energy
+          : (v as number);
+      return String(roundToPrecision(raw / 1_000_000, meta.precision));
+    },
+  },
+  {
+    wbType: "value",
+    wbUnits: "kVAh",
+    matterDeviceType: electricalSensor,
+    matterClusterIds: [ElectricalEnergyMeasurement.Cluster.id],
+    matterAttribute: "cumulativeEnergyImported",
     converter: (v) => ({
       energy: Math.round(parseFloat(v) * 1_000_000),
     }),

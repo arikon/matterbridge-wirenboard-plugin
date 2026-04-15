@@ -195,6 +195,48 @@ describe("electrical converters", () => {
     const m = findMapping(ctrl)!;
     expect(m.converter("1", ctrl)).toEqual({ energy: 1_000_000 });
   });
+
+  it("var × 1000: 25 var → 25000 mVAR", () => {
+    const ctrl = meta({ type: "value", units: "var" });
+    const m = findMapping(ctrl)!;
+    expect(m.converter("25", ctrl)).toBe(25000);
+  });
+
+  it("VA × 1000: 330 VA → 330000 mVA", () => {
+    const ctrl = meta({ type: "value", units: "VA" });
+    const m = findMapping(ctrl)!;
+    expect(m.converter("330", ctrl)).toBe(330000);
+  });
+
+  it("ratio 0.97 → powerFactor 9700 (1/100th percent units)", () => {
+    const ctrl = meta({ type: "value", units: "ratio" });
+    const m = findMapping(ctrl)!;
+    expect(m.converter("0.97", ctrl)).toBe(9700);
+  });
+
+  it("Hz → mHz: 50.02 Hz → 50020", () => {
+    const ctrl = meta({ type: "value", units: "Hz" });
+    const m = findMapping(ctrl)!;
+    expect(m.converter("50.02", ctrl)).toBe(50020);
+  });
+
+  it("deg phase proxy → rmsCurrent: 12.5° → 12500", () => {
+    const ctrl = meta({ type: "value", units: "deg" });
+    const m = findMapping(ctrl)!;
+    expect(m.converter("12.5", ctrl)).toBe(12500);
+  });
+
+  it("kvarh uses same cumulative struct as kWh", () => {
+    const ctrl = meta({ type: "value", units: "kvarh" });
+    const m = findMapping(ctrl)!;
+    expect(m.converter("0.5", ctrl)).toEqual({ energy: 500_000 });
+  });
+
+  it("kVAh uses same cumulative struct as kWh", () => {
+    const ctrl = meta({ type: "value", units: "kVAh" });
+    const m = findMapping(ctrl)!;
+    expect(m.converter("2", ctrl)).toEqual({ energy: 2_000_000 });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -679,6 +721,27 @@ describe("bounds clamping", () => {
 // ---------------------------------------------------------------------------
 
 describe("humidity converter (% and RH)", () => {
+  it("% + THD in name → electrical rmsPower proxy (not humidity)", () => {
+    const ctrl = meta({ type: "value", units: "%" });
+    const m = findMapping(ctrl, "THD L1")!;
+    expect(m.matterAttribute).toBe("rmsPower");
+    expect(m.converter("3.5", ctrl)).toBe(350);
+  });
+
+  it("% without harmonic keywords → humidity", () => {
+    const ctrl = meta({ type: "value", units: "%" });
+    const m = findMapping(ctrl, "Room humidity")!;
+    expect(m.matterDeviceType.name).toBe("MA-humiditysensor");
+    expect(m.converter("50", ctrl)).toBe(5000);
+  });
+
+  it("% climate: 65.3 → 6530 when name has humidity but no THD/harm keywords", () => {
+    const ctrl = meta({ type: "value", units: "%" });
+    const m = findMapping(ctrl, "Indoor humidity")!;
+    expect(m.matterDeviceType.name).toBe("MA-humiditysensor");
+    expect(m.converter("65.3", ctrl)).toBe(6530);
+  });
+
   it("% units: 50 → 5000", () => {
     const ctrl = meta({ type: "value", units: "%" });
     const m = findMapping(ctrl)!;

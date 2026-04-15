@@ -34,6 +34,8 @@ Wirenboard devices are discovered via standard WB MQTT conventions (`/devices/+/
 | Node.js                                                | 20.19+ / 22.13+ / 24+                           |
 | MQTT broker                                            | Wirenboard controller or any Mosquitto instance |
 
+**Developing this plugin from source:** the repo does **not** list `matterbridge` as an npm dependency. Run **`npm run dev:link`** after `npm install` so `matterbridge` is symlinked into `node_modules` (same idea as the official plugin template). Without that link, **`npm run build`** and tests will fail with unresolved `matterbridge` imports.
+
 ## Installation
 
 ### Via Matterbridge frontend (recommended)
@@ -47,16 +49,20 @@ sudo npm install -g matterbridge-wirenboard-plugin --omit=dev
 matterbridge -add matterbridge-wirenboard-plugin
 ```
 
-### Development (npm link)
+### Development (`npm link` / `dev:link`)
+
+Install [Matterbridge](https://github.com/Luligu/matterbridge) globally (`npm install -g matterbridge`) **or** from a local clone (`cd matterbridge && npm link`). Then link it into this project:
 
 ```bash
 git clone https://github.com/your-org/matterbridge-wirenboard-plugin
 cd matterbridge-wirenboard-plugin
 npm install
-npm run dev:link
+npm run dev:link   # required: wires matterbridge into node_modules for tsc / jest
 npm run build
 matterbridge -add .
 ```
+
+`npm run dev:link` runs `npm link matterbridge` (see `package.json` scripts).
 
 ## Configuration
 
@@ -114,6 +120,27 @@ Configuration is stored in `~/.matterbridge/matterbridge-wirenboard-plugin.confi
 }
 ```
 
+### WB MAP meters and `meta.units` (before updated wb-mqtt-serial templates)
+
+The plugin chooses Matter mappings for `value` channels from **`meta.units`** on each control (`/devices/<id>/controls/<control>/meta` in MQTT). Newer **wb-mqtt-serial** MAP device templates include `"units"` on channels so this works out of the box. If your controller still runs an **older** wb-mqtt-serial build **without** those template fields, controls may have **no** `units` in MQTT and the plugin will skip them or only map legacy normalized types (e.g. deprecated `power` → `W`).
+
+Until you upgrade wb-mqtt-serial, you can fix this in **wb-mqtt-serial** configuration (not in Matterbridge):
+
+1. **Merge `units` in the serial device definition (recommended)**
+   In the Wiren Board UI (**Settings → Serial devices**) or in `/etc/wb-mqtt-serial.conf`, open the MAP device and add a `channels` array where each entry sets **`name`** exactly as in the device template (same English string as in the template file, e.g. `Q L1`, `Urms L1`, `EPP`) and the desired **`units`** string.
+   Per [wb-mqtt-serial](https://github.com/wirenboard/wb-mqtt-serial) docs, when a channel **name** matches the template, properties from the **device** config are **merged** with the template and **override** the template if both set the same field—so you only need `name` + `units` for each channel that is missing units.
+
+2. **Custom template copy**
+   Copy the MAP JSON from `/usr/share/wb-mqtt-serial/templates/` (e.g. `config-map12e.json`) into `/etc/wb-mqtt-serial.conf.d/templates/`, add `"units": "…"` under each `channels[]` entry that needs it, then select that template / `device_type` for the device. Use this if you prefer one file with full control.
+
+Use **`units` strings** that match the [sensor mapping table](#supported-wirenboard-control-types) and your plugin version (newer releases add MAP electrical units such as `var`, `VA`, `Hz`, `deg`, `ratio`, `kvarh`, `kVAh`). Copy spelling **exactly** from the [wb-mqtt-serial MAP templates](https://github.com/wirenboard/wb-mqtt-serial/tree/master/templates) when in doubt (`units` is case-sensitive).
+
+**Why `%` and “humidity” appear together:** the plugin’s default for `value` + `%` is **relative humidity** (climate sensors). MAP may also use **`%`** for **THD** (harmonics). Those MAP channels are **not** humidity — give the control a **name** that matches the plugin’s harmonic keywords (`THD`, `harm`, …) so mapping goes to **electrical**, not `humiditySensor`.
+
+**MAP electrical Matter proxies (limitation of the default Matter server on the bridge):** THD `%` (with harmonic keywords) is stored in **`rmsPower`** (scale ≈ THD×100, not true RMS watts). Phase angle **`deg`** is stored in **`rmsCurrent`** as millidegrees (×1000), not amperes. **`kvarh`** / **`kVAh`** use the same **`cumulativeEnergyImported`** struct as **`kWh`**, one Matter endpoint per WB counter channel.
+
+After saving config, **restart wb-mqtt-serial** and confirm under MQTT that each control’s meta includes the expected `units`, then restart or reconnect Matterbridge if needed.
+
 ## Supported Wirenboard Control Types
 
 ### Switches & Actuators
@@ -139,10 +166,13 @@ Configuration is stored in `~/.matterbridge/matterbridge-wirenboard-plugin.confi
 | -------------- | --------------------------------- | --------------------- | ------------------------------------------------------- |
 | `value`        | `deg C`                           | `temperatureSensor`   | `TemperatureMeasurement`                                |
 | `value`        | `%`, `RH`                         | `humiditySensor`      | `RelativeHumidityMeasurement`                           |
+| `value`        | `%` + name hints `THD`/`harm`/…   | `electricalSensor`    | `ElectricalPowerMeasurement` (THD proxy, see AGENTS.md) |
 | `value`        | `Pa` / `mbar` / `bar`             | `pressureSensor`      | `PressureMeasurement`                                   |
 | `value`        | `lx`                              | `lightSensor`         | `IlluminanceMeasurement`                                |
 | `value`        | `W` / `V` / `A` / `mA` / `mV`     | `electricalSensor`    | `ElectricalPowerMeasurement`                            |
-| `value`        | `kWh`                             | `electricalSensor`    | `ElectricalEnergyMeasurement`                           |
+| `value`        | `var` / `VA` / `Hz` / `ratio`     | `electricalSensor`    | `ElectricalPowerMeasurement`                            |
+| `value`        | `deg` (not `deg C`)               | `electricalSensor`    | `ElectricalPowerMeasurement` (phase-angle proxy)        |
+| `value`        | `kWh` / `kvarh` / `kVAh`          | `electricalSensor`    | `ElectricalEnergyMeasurement`                           |
 | `value`        | `m³/h`                            | `flowSensor`          | `FlowMeasurement`                                       |
 | `value`        | `ppm` (CO2)                       | `airQualitySensor`    | `AirQuality` + `CarbonDioxideConcentrationMeasurement`  |
 | `value`        | `ppm` (CO, by name)               | `airQualitySensor`    | `AirQuality` + `CarbonMonoxideConcentrationMeasurement` |

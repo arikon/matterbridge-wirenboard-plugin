@@ -4,10 +4,12 @@ This file provides guidance to AI Agents when working with code in this reposito
 
 ## Commands
 
+`matterbridge` **не** входит в `package.json`: типы и модули берутся через **`npm link`** (как в [matterbridge-plugin-template](https://github.com/Luligu/matterbridge-plugin-template)). Без линка `npm run build` / тесты не найдут `matterbridge`.
+
 ```bash
 # Setup dev environment (required after clone or matterbridge update)
 npm ci --no-fund --no-audit
-npm run dev:link          # npm link matterbridge from ../matterbridge (symlink)
+npm run dev:link          # npm link matterbridge — нужен установленный глобально/рядом пакет matterbridge (см. README)
 npm run build             # compile TypeScript → dist/
 
 # Development
@@ -71,7 +73,7 @@ Core source files:
 | `src/wirenboardMqtt.ts`        | `WirenboardMqtt` — MQTT client, topic parser, `EventEmitter`. Emits typed events: `device-meta`, `control-meta`, `control-value`, `control-error`, `device-removed`, `mqtt_connect`, `mqtt_disconnect`.                                                                                   |
 | `src/wirenboardDevice.ts`      | `WirenboardDevice` — builds `MatterbridgeEndpoint` objects from `WbDevice`. Static factory `WirenboardDevice.create()`. Owns `propertyMap` for per-endpoint control routing. Implements `updateFromMqtt()` (MQTT→Matter) and command handlers (Matter→MQTT).                              |
 | `src/systemMetadataMapping.ts` | WB device id **`system`** (controller) only: maps readonly `text` controls (e.g. Short SN, Batch No) to **Bridged Device Basic Information** attributes via `extractSystemControllerMetadata()` / `applyControllerBridgedBiSnapshot()`. Other devices use legacy Serial/FW/HW hints only. |
-| `src/controlMapping.ts`        | Mapping table: WB control type + units → Matter device type + cluster IDs + value converters. `findMapping()` is the main lookup. Also exports CCT converters: `cctRangeToMireds`, `miredsToCtRange`.                                                                                     |
+| `src/controlMapping.ts`        | Mapping table: WB type + units → Matter device + clusters + converters; `findMapping()`. CCT helpers. WB-MAP: extra electrical `units` (see README); `deg` → `rmsCurrent` proxy; THD `%` (name keywords) → `rmsPower` proxy.                                                              |
 | `src/wirenboardTypes.ts`       | TypeScript interfaces: `WbDevice`, `WbControl`, `WbControlMeta`, `WbDeviceMeta`, `WbControlType`.                                                                                                                                                                                         |
 
 ### Key data flow
