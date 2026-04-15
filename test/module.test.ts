@@ -649,6 +649,38 @@ describe("onStart", () => {
     expect(mockFns.registerDevice).toHaveBeenCalled();
   });
 
+  it("registers multiple WB devices in canonical name order (MQTT discovery order independent)", async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({ discoveryTimeout: 1, discoveryIdleMs: 5 }),
+    );
+    emitMqttEvent("device-meta", {
+      deviceName: "zebra",
+      meta: { driver: "wb", title: "Z" },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "zebra",
+      controlName: "K1",
+      meta: { type: "switch", readonly: false },
+    });
+    emitMqttEvent("device-meta", {
+      deviceName: "alpha",
+      meta: { driver: "wb", title: "A" },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "alpha",
+      controlName: "K1",
+      meta: { type: "switch", readonly: false },
+    });
+    await platform.onStart("test");
+    expect(mockFns.registerDevice.mock.calls.length).toBeGreaterThanOrEqual(2);
+    const id0 = (mockFns.registerDevice.mock.calls[0][0] as { id?: string }).id;
+    const id1 = (mockFns.registerDevice.mock.calls[1][0] as { id?: string }).id;
+    expect(String(id0)).toContain("alpha");
+    expect(String(id1)).toContain("zebra");
+  });
+
   it("sets shouldConfigure=true at end of onStart (Fix #3)", async () => {
     const platform = new WirenboardPlatform(
       mockMatterbridge,

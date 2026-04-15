@@ -39,10 +39,17 @@ class MockEndpoint {
       return this;
     },
   );
-  addChildDeviceTypeWithClusterServer = jest.fn((childId: string) => {
-    const child = new MockEndpoint(undefined, { id: childId });
-    return child;
-  });
+  addChildDeviceTypeWithClusterServer = jest.fn(
+    (
+      childId: string,
+      _types: unknown,
+      _clusters: unknown,
+      _options?: { tagList?: unknown },
+    ) => {
+      const child = new MockEndpoint(undefined, { id: childId });
+      return child;
+    },
+  );
   createDefaultHeatingThermostatClusterServer = jest.fn(() => this);
   createDefaultCoolingThermostatClusterServer = jest.fn(() => this);
   createDefaultThermostatClusterServer = jest.fn(() => this);
@@ -293,6 +300,28 @@ function makeDevice(name: string, controls: WbControl[]): WbDevice {
   };
 }
 
+/**
+ * Build a device with the same controls but different Map insertion order.
+ *
+ * @param name - device id
+ * @param controls - control list
+ * @param insertion - `forward` uses array order; `reverse` inserts from the end
+ */
+function makeDeviceWithMapInsertionOrder(
+  name: string,
+  controls: WbControl[],
+  insertion: "forward" | "reverse",
+): WbDevice {
+  const controlMap = new Map<string, WbControl>();
+  const seq = insertion === "forward" ? controls : [...controls].reverse();
+  for (const c of seq) controlMap.set(c.name, c);
+  return {
+    name,
+    meta: { driver: "wb-test", title: { en: `${name} Title` } },
+    controls: controlMap,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -327,6 +356,26 @@ describe("groupingMode 'device'", () => {
     // addChildDeviceTypeWithClusterServer called for each control
     const root = dev.endpoints[0] as unknown as MockEndpoint;
     expect(root.addChildDeviceTypeWithClusterServer).toHaveBeenCalledTimes(2);
+  });
+
+  it("adds child endpoints in canonical order regardless of Map insertion order", async () => {
+    const k1 = makeSwitch("K1");
+    const k2 = makeSwitch("K2");
+    const mqtt = makeMqtt();
+
+    const dev = await WirenboardDevice.create(
+      mockLog,
+      makeDeviceWithMapInsertionOrder("wb-dev-map", [k1, k2], "reverse"),
+      mqtt,
+      "device",
+      0xfff1,
+    );
+
+    const root = dev.endpoints[0] as unknown as MockEndpoint;
+    const childIds = root.addChildDeviceTypeWithClusterServer.mock.calls.map(
+      (call) => call[0] as string,
+    );
+    expect(childIds).toEqual(["wb-dev-map_K1", "wb-dev-map_K2"]);
   });
 
   it("sets up device with correct id", async () => {
@@ -367,6 +416,39 @@ describe("groupingMode 'device'", () => {
 // ---------------------------------------------------------------------------
 
 describe("tagList uses namespace 7 with sequential tag for all endpoints", () => {
+  it("assigns tag 1..n by canonical control name order when Map insertion order differs", async () => {
+    const wbDevice = makeDeviceWithMapInsertionOrder(
+      "wb-tag-order",
+      [makeSwitch("K2"), makeSwitch("K1")],
+      "forward",
+    );
+    const mqtt = makeMqtt();
+
+    const dev = await WirenboardDevice.create(
+      mockLog,
+      wbDevice,
+      mqtt,
+      "device",
+      0xfff1,
+    );
+
+    const root = dev.endpoints[0]!;
+    const fn = root.addChildDeviceTypeWithClusterServer as ReturnType<
+      typeof jest.fn
+    >;
+    expect(fn).toHaveBeenCalledTimes(2);
+    const opts0 = fn.mock.calls[0]?.[3] as
+      | { tagList: Array<{ tag: number; label: string }> }
+      | undefined;
+    const opts1 = fn.mock.calls[1]?.[3] as
+      | { tagList: Array<{ tag: number; label: string }> }
+      | undefined;
+    expect(opts0?.tagList[0]?.tag).toBe(1);
+    expect(opts0?.tagList[0]?.label).toBe("K1");
+    expect(opts1?.tagList[0]?.tag).toBe(2);
+    expect(opts1?.tagList[0]?.label).toBe("K2");
+  });
+
   it("provides consistent tagList for 18 same-type endpoints", async () => {
     const controls = Array.from({ length: 18 }, (_, i) =>
       makeSwitch(`K${i + 1}`),
@@ -451,6 +533,73 @@ describe("groupingMode 'control'", () => {
     );
 
     expect(dev.primaryEndpoint).toBe(dev.endpoints[0]);
+  });
+
+  it("sequential creates with different Map orders yield identical endpoint id lists", async () => {
+    const mqtt = makeMqtt();
+    const run = (ord: "forward" | "reverse") =>
+      WirenboardDevice.create(
+        mockLog,
+        makeDeviceWithMapInsertionOrder(
+          "wb-seq",
+          [makeSwitch("K1"), makeSwitch("K2")],
+          ord,
+        ),
+        mqtt,
+        "control",
+        0xfff1,
+      );
+
+    const first = await run("forward");
+    const idsFirst = first.endpoints.map(
+      (e) => (e as unknown as MockEndpoint).id,
+    );
+    endpointInstances.length = 0;
+    jest.clearAllMocks();
+    const second = await run("reverse");
+    const idsSecond = second.endpoints.map(
+      (e) => (e as unknown as MockEndpoint).id,
+    );
+
+    expect(idsFirst).toEqual(idsSecond);
+    expect(idsFirst).toEqual(["wb-seq_K1", "wb-seq_K2"]);
+  });
+
+  it("endpoint id order is canonical and independent of Map insertion order (control mode)", async () => {
+    const k1 = makeSwitch("K1");
+    const k2 = makeSwitch("K2");
+    const k3 = makeSwitch("K3");
+    const mqtt = makeMqtt();
+
+    const devForward = await WirenboardDevice.create(
+      mockLog,
+      makeDeviceWithMapInsertionOrder("wb-canonical", [k1, k2, k3], "forward"),
+      mqtt,
+      "control",
+      0xfff1,
+    );
+    const idsForward = devForward.endpoints.map(
+      (e) => (e as unknown as MockEndpoint).id,
+    );
+
+    endpointInstances.length = 0;
+    jest.clearAllMocks();
+
+    const devReverse = await WirenboardDevice.create(
+      mockLog,
+      makeDeviceWithMapInsertionOrder("wb-canonical", [k1, k2, k3], "reverse"),
+      mqtt,
+      "control",
+      0xfff1,
+    );
+    const idsReverse = devReverse.endpoints.map(
+      (e) => (e as unknown as MockEndpoint).id,
+    );
+
+    const expected = ["wb-canonical_K1", "wb-canonical_K2", "wb-canonical_K3"];
+    expect(idsForward).toEqual(expected);
+    expect(idsReverse).toEqual(expected);
+    expect(new Set([...idsForward, ...idsReverse]).size).toBe(3);
   });
 });
 

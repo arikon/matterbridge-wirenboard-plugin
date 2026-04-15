@@ -34,7 +34,8 @@
     "lint:inspect": "eslint --cache --cache-location .cache/.eslintcache --max-warnings=0 --inspect-config",
     "format": "prettier --cache --cache-location .cache/.prettiercache --write .",
     "format:check": "prettier --cache --cache-location .cache/.prettiercache --check .",
-    "dev:link": "npm link --no-fund --no-audit matterbridge"
+    "dev:link": "npm link --no-fund --no-audit matterbridge",
+    "verify:mqtt": "node scripts/real-mqtt-verify.mjs"
   },
   "dependencies": {
     "mqtt": "5.15.1",

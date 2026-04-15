@@ -23,6 +23,9 @@ npm run test:typecheck    # type-check test files without emit
 # Run a single test file
 npm test -- test/controlMapping.test.ts
 
+# Live MQTT smoke (build first; uses WB_MQTT_* env, default host 192.168.55.15)
+npm run build && npm run verify:mqtt
+
 # Lint (ESLint on the whole tree; exits non-zero if any warning — --max-warnings=0)
 npm run lint
 ```
@@ -137,6 +140,10 @@ const makeCluster = (name: string, id: number) => ({
 
 `matterbridge` v3.7.3+ uses a monorepo structure: `dist/export.js` is a stub that re-exports from `@matterbridge/core`, which exists only in matterbridge's own `node_modules`. Running `npm run dev:link` creates the correct symlink so the real package resolves. The Jest mock intercepts `matterbridge` before `@matterbridge/core` is ever loaded, so no transitive resolution is needed in tests.
 
+### Matter endpoint order (stability)
+
+Endpoint numbering does not depend on the order in which controls arrive into the in-memory `Map` from MQTT. Sorting is defined in `src/canonicalOrdering.ts` using a stable, locale-aware rule (`en`, numeric). Per Wiren Board device: thermostat detection and lighting-composite grouping behave as before; remaining mappable controls and lighting composites are ordered by control name; when several devices are registered, their registration order follows sorted device names. After upgrading this plugin, a Matter controller may report endpoint numbers that differ from those produced by an older plugin version; that mismatch is an expected consequence of adopting deterministic ordering.
+
 ### Integration tests
 
-`test/integration/` — MQTT через **aedes** в том же процессе Node (см. комментарий в `mqtt-integration.test.ts`); отдельный брокер не нужен. Jest их **не исключает**, они входят в обычный `npm test`.
+`test/integration/` uses an in-process **aedes** MQTT broker (see `mqtt-integration.test.ts`); no external broker is required. Jest does **not** exclude this folder — these tests run as part of the default `npm test`.

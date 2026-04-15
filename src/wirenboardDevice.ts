@@ -31,6 +31,10 @@ import {
 import { ClusterId } from "matterbridge/matter/types";
 
 import {
+  compareCanonicalControlNames,
+  sortedControlsByCanonicalName,
+} from "./canonicalOrdering.js";
+import {
   cctRangeToMireds,
   clampLevelControlCurrentLevel,
   classifyCO2,
@@ -133,7 +137,7 @@ function detectThermostatControls(
   let coolSetpoint: WbControl | undefined;
   let modeControl: WbControl | undefined;
 
-  for (const [, ctrl] of controls) {
+  for (const ctrl of sortedControlsByCanonicalName(controls)) {
     const nameLower = ctrl.name.toLowerCase();
     const type = ctrl.meta.type;
     const units = ctrl.meta.units;
@@ -257,6 +261,9 @@ function detectLightingComposites(
     }
   }
 
+  composites.sort((a, b) =>
+    compareCanonicalControlNames(a.switchControl.name, b.switchControl.name),
+  );
   return composites;
 }
 
@@ -830,7 +837,7 @@ export class WirenboardDevice {
       mapping: WbToMatterMapping;
     }> = [];
 
-    for (const [, ctrl] of wbDevice.controls) {
+    for (const ctrl of sortedControlsByCanonicalName(wbDevice.controls)) {
       if (skippedControlNames.has(ctrl.name)) continue;
       if (!includeHidden && ctrl.meta.hidden === true) continue;
       if (isInternalDiagnostic(ctrl.name) && !includeHidden) continue;

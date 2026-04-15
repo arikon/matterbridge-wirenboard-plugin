@@ -17,6 +17,10 @@ import { AnsiLogger } from "matterbridge/logger";
 import { ColorControl } from "matterbridge/matter/clusters";
 import { waiter } from "matterbridge/utils";
 
+import {
+  compareCanonicalControlNames,
+  sortedControlsByCanonicalName,
+} from "./canonicalOrdering.js";
 import { DeviceOverrides, findMapping } from "./controlMapping.js";
 import {
   GroupingMode,
@@ -45,6 +49,9 @@ function isNetworkPrefixedDevice(deviceName: string): boolean {
   return deviceName.startsWith("network");
 }
 
+/**
+ *
+ */
 function appliesSystemPrefixedSkip(
   deviceName: string,
   ignoreSystemPrefixedDevices: boolean,
@@ -52,6 +59,9 @@ function appliesSystemPrefixedSkip(
   return ignoreSystemPrefixedDevices && isSystemDevice(deviceName);
 }
 
+/**
+ *
+ */
 function appliesNetworkPrefixedSkip(
   deviceName: string,
   ignoreNetworkPrefixedDevices: boolean,
@@ -341,7 +351,12 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       | Record<string, Record<string, unknown>>
       | undefined;
 
-    for (const [, wbDevice] of this.deviceMap) {
+    const deviceNames = [...this.deviceMap.keys()].sort(
+      compareCanonicalControlNames,
+    );
+    for (const name of deviceNames) {
+      const wbDevice = this.deviceMap.get(name);
+      if (!wbDevice) continue;
       await this.registerWbDevice(
         wbDevice,
         groupingMode,
@@ -368,7 +383,9 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       ignoreNetworkPrefixedDevices,
     };
     if (shouldSkipMatterRegistration(wbDevice.name, skipOpts)) {
-      if (appliesSystemPrefixedSkip(wbDevice.name, ignoreSystemPrefixedDevices)) {
+      if (
+        appliesSystemPrefixedSkip(wbDevice.name, ignoreSystemPrefixedDevices)
+      ) {
         this.log.debug(
           `Skipping Matter registration for Wirenboard service device ${wbDevice.name} (ignoreSystemPrefixedDevices)`,
         );
@@ -401,8 +418,8 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     // Register device in whitelist/blacklist UI
     this.setSelectDevice(serial, deviceTitle);
 
-    // Register controls for entity whitelist/blacklist UI
-    for (const [, ctrl] of wbDevice.controls) {
+    // Register controls for entity whitelist/blacklist UI (canonical order)
+    for (const ctrl of sortedControlsByCanonicalName(wbDevice.controls)) {
       const ctrlTitle = ctrl.meta.title
         ? typeof ctrl.meta.title === "string"
           ? ctrl.meta.title

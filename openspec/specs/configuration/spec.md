@@ -166,7 +166,7 @@ This requirement SHALL be independent of `ignoreSystemPrefixedDevices`.
 - **WHEN** the device name is `networks` or `networks_abc` or any string starting with `network`
 - **THEN** the device SHALL be treated as network-prefixed for this requirement
 
-#### Scenario: system__ without leading network
+#### Scenario: system\_\_ without leading network
 
 - **WHEN** the device name starts with `system__` but not with `network`
 - **THEN** exclusion for that name SHALL follow `ignoreSystemPrefixedDevices` only; `ignoreNetworkPrefixedDevices` SHALL NOT apply based on the `network` prefix rule alone
