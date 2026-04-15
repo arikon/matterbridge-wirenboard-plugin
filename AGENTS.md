@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI Agents when working with code in this repository.
 
 ## Commands
 
@@ -26,6 +26,20 @@ npm test -- test/controlMapping.test.ts
 # Lint (ESLint on the whole tree; exits non-zero if any warning — --max-warnings=0)
 npm run lint
 ```
+
+## Engineering principles
+
+When changing this codebase, prefer:
+
+- **SOLID** — Single responsibility (e.g. pure predicates vs logging vs MQTT); keep interfaces small; depend on abstractions where it already pays off; avoid god objects.
+- **KISS** — Simplest change that fixes the issue; avoid speculative generalization.
+- **YAGNI** — Do not add features, config knobs, or abstractions until there is a concrete need.
+- **DRY** — Reuse existing helpers and patterns; duplicate only when abstraction would obscure intent.
+- **Separation of concerns** — Configuration and rules in one place; I/O (`log`, MQTT, Matter registration) at boundaries; pure functions for decisions when practical (see `shouldSkipMatterRegistration` / `applies*PrefixedSkip` in `module.ts`).
+- **Focused diffs** — Touch only what the task requires; no drive-by refactors or unrelated formatting.
+- **Tests** — Add or extend tests for new behavior; keep mocks in sync when imports from `matterbridge` change (see [Testing](#testing)).
+
+These align with project conventions and keep reviews small and safe.
 
 ## OpenSpec
 
@@ -70,9 +84,15 @@ Core source files:
 - `device` (default): one `MatterbridgeEndpoint` per WB device, child endpoints per control
 - `control`: one `MatterbridgeEndpoint` per WB control
 
-### Logging: `ignoreSystemControls` (default `true`)
+### `ignoreSystemPrefixedDevices` (default `true`)
 
-Unmappable controls on service devices (`system__*`) use a dedicated line (`System device <id>: skipping unmappable control …`) at **debug** by default. Set `ignoreSystemControls: false` to log that line at **warn**. Other devices still use `Skipping control … no mapping` at **warn**.
+When **true**, Wirenboard service devices (MQTT device id prefix `system__`, e.g. `system__networks__…`) are **not** registered as Matter bridged devices. When **false**, they are bridged like any other device.
+
+If you set **`false`** and a `system__*` device is bridged but some controls have no mapping, those skips use a dedicated line (`System device <id>: skipping unmappable control …`) at **warn**. Non-system devices always use `Skipping control … no mapping` at **warn**.
+
+### `ignoreNetworkPrefixedDevices` (default `true`)
+
+When **true**, WB device ids that start with the prefix **`network`** (case-sensitive; covers e.g. `networks`) are **not** registered as Matter bridged devices. When **false**, they follow normal registration. This is **independent** of `ignoreSystemPrefixedDevices` (a device may be excluded by either rule).
 
 ### Composite detection in `wirenboardDevice.ts`
 
@@ -119,4 +139,4 @@ const makeCluster = (name: string, id: number) => ({
 
 ### Integration tests
 
-`test/integration/` — requires a live MQTT broker. Not run in normal `npm test`.
+`test/integration/` — MQTT через **aedes** в том же процессе Node (см. комментарий в `mqtt-integration.test.ts`); отдельный брокер не нужен. Jest их **не исключает**, они входят в обычный `npm test`.
