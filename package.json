@@ -19,7 +19,7 @@
   },
   "scripts": {
     "start": "matterbridge",
-    "build": "tsc --project tsconfig.build.json",
+    "build": "tsc --project tsconfig.build.json && node scripts/generate-plugin-schema.mjs && prettier --write matterbridge-wirenboard-plugin.schema.json",
     "clean": "npx shx rm -rf *.tsbuildinfo dist",
     "cleanBuild": "npm run clean && npm run build",
     "watch": "tsc --watch",

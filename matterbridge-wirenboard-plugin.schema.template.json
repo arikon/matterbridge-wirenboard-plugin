@@ -7,32 +7,7 @@
       "title": "Matter device type (override)",
       "description": "Matterbridge export name for deviceOverrides.controls.*.deviceType. The enum is generated at plugin build from CONTROL_MAPPINGS (npm run build). / Имя экспорта Matterbridge; enum заполняется при сборке плагина из CONTROL_MAPPINGS.",
       "type": "string",
-      "enum": [
-        "airQualitySensor",
-        "colorTemperatureLight",
-        "contactSensor",
-        "coverDevice",
-        "dimmableLight",
-        "doorLockDevice",
-        "electricalSensor",
-        "extendedColorLight",
-        "fanDevice",
-        "flowSensor",
-        "genericSwitch",
-        "humiditySensor",
-        "lightSensor",
-        "occupancySensor",
-        "onOffLight",
-        "onOffOutlet",
-        "pressureSensor",
-        "pumpDevice",
-        "rainSensor",
-        "smokeCoAlarm",
-        "temperatureSensor",
-        "waterFreezeDetector",
-        "waterLeakDetector",
-        "waterValve"
-      ]
+      "enum": []
     },
     "deviceOverrideControlEntry": {
       "type": "object",

@@ -32,6 +32,7 @@ import {
 type EndpointWithWindowCovering = MatterbridgeEndpoint & {
   setWindowCoveringTargetAsCurrentAndStopped?: () => Promise<void>;
 };
+import { normalizeDeviceOverridesEntry } from "./deviceOverrides.js";
 import {
   ControlErrorEvent,
   ControlMetaEvent,
@@ -397,10 +398,18 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       return;
     }
 
-    // Check if at least one control has a mapping
-    const hasMappable = [...wbDevice.controls.values()].some((ctrl) =>
-      findMapping(ctrl.meta, ctrl.name),
+    const ovRaw = deviceOverridesConfig?.[wbDevice.name];
+    const normalizedOv = normalizeDeviceOverridesEntry(ovRaw, (m) =>
+      this.log.warn(m),
     );
+    const skippedFromConfig = normalizedOv?.skippedControls;
+    const typeOverrides = normalizedOv?.typeOverrides;
+
+    // Check if at least one control has a mapping (after skips and type overrides)
+    const hasMappable = [...wbDevice.controls.values()].some((ctrl) => {
+      if (skippedFromConfig?.has(ctrl.name)) return false;
+      return findMapping(ctrl.meta, ctrl.name, typeOverrides) !== undefined;
+    });
     if (!hasMappable) {
       this.log.info(
         `No mappable controls for device ${wbDevice.name} — skipping`,
@@ -408,10 +417,11 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       return;
     }
 
-    const deviceTitle =
+    const baseTitle =
       typeof wbDevice.meta.title === "string"
         ? wbDevice.meta.title || wbDevice.name
         : wbDevice.meta.title.en || wbDevice.name;
+    const deviceTitle = normalizedOv?.displayName ?? baseTitle;
 
     const serial = wbDevice.name;
 
@@ -436,11 +446,6 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     // Validate whitelist/blacklist
     if (!this.validateDevice([deviceTitle, serial])) return;
 
-    // Resolve device-level overrides
-    const deviceOverrides = deviceOverridesConfig?.[wbDevice.name] as
-      | DeviceOverrides
-      | undefined;
-
     // Create WirenboardDevice (builds all endpoints)
     let wbDev: WirenboardDevice;
     try {
@@ -452,7 +457,9 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
         this.matterbridge.aggregatorVendorId,
         includeHidden,
         ignoreSystemPrefixedDevices,
-        deviceOverrides,
+        typeOverrides,
+        skippedFromConfig,
+        normalizedOv?.displayName,
       );
     } catch (err) {
       this.log.error(
@@ -469,7 +476,11 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     }
 
     // Determine dominant type for Matterbridge UI label
-    const dominantType = this.getDominantType(wbDevice);
+    const dominantType = this.getDominantType(
+      wbDevice,
+      typeOverrides,
+      skippedFromConfig,
+    );
 
     const mqttHost =
       (this.config["mqttHost"] as string | undefined) ?? "localhost";
@@ -723,11 +734,16 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
    *
    * @param wbDevice
    */
-  private getDominantType(wbDevice: WbDevice): string {
+  private getDominantType(
+    wbDevice: WbDevice,
+    typeOverrides?: DeviceOverrides,
+    skippedFromConfig?: ReadonlySet<string>,
+  ): string {
     const counts = { Light: 0, Switch: 0, Sensor: 0, Cover: 0, Climate: 0 };
 
     for (const [, ctrl] of wbDevice.controls) {
-      const mapping = findMapping(ctrl.meta, ctrl.name);
+      if (skippedFromConfig?.has(ctrl.name)) continue;
+      const mapping = findMapping(ctrl.meta, ctrl.name, typeOverrides);
       if (!mapping) continue;
       const typeName = mapping.matterDeviceType.name?.toLowerCase() ?? "";
       if (

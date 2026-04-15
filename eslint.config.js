@@ -23,6 +23,7 @@ export default defineConfig([
     name: "Global Ignores",
     ignores: [
       "**/.cache",
+      "**/.omc",
       "**/build",
       "**/coverage",
       "**/dist",

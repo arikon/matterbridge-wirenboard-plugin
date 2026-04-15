@@ -269,7 +269,11 @@ The WB MQTT device id **`system`** represents the Wirenboard **controller** (fac
 
 ### deviceOverrides
 
-Override settings for individual devices or controls:
+**`deviceType`:** use **Matterbridge export names** (e.g. `onOffOutlet`, `onOffLight`), not Matter `DeviceTypeDefinition.name` strings (e.g. `MA-onoffpluginunit`). The allowed values are exactly the Matter device types that appear in `CONTROL_MAPPINGS` in `controlMapping.ts`. The same list is written into the `deviceType` **enum** in `matterbridge-wirenboard-plugin.schema.json` **when you run `npm run build`** (from `MATTER_DEVICE_TYPE_BY_NAME`). Types that only exist on **composite** code paths are not valid here — for example you cannot set `deviceType: "thermostatDevice"` on a single arbitrary control; a thermostat is created when [Thermostat composite detection](#thermostat-composite-detection) matches your WB metadata.
+
+Per-device keys are WB device ids. Each value **must** include **`controls`** (object). Optional **`name`** sets the Matterbridge UI / registration title for that device. Under `controls`, each key is a WB control name; the value may set **`deviceType`** (string, as above) or **`skip`: true** (no endpoint, no “unmappable control” warning for that control).
+
+Example full config:
 
 ```json
 {
@@ -303,6 +307,8 @@ If a WB device has controls matching this combination, the plugin creates a `the
 
 Heating-only or cooling-only is detected automatically from available controls. Min/max setpoint bounds are taken from `meta.min`/`meta.max` of the setpoint control.
 
+This path is automatic — `deviceOverrides` cannot turn a single control into a `thermostatDevice`; that string is not in the override enum because it is not a row in `CONTROL_MAPPINGS` for individual controls.
+
 ### Static discovery
 
 Use `discoveryMode: "static"` to expose only a fixed list of devices, bypassing MQTT meta-topic subscription:
@@ -332,7 +338,7 @@ Use `discoveryMode: "static"` to expose only a fixed list of devices, bypassing 
 
 ```bash
 npm install
-npm run build        # compile TypeScript → dist/
+npm run build        # compile TypeScript → dist/; refresh matterbridge-wirenboard-plugin.schema.json (deviceType enum from CONTROL_MAPPINGS)
 npm run watch        # watch mode
 npm run cleanBuild   # clean + build
 ```

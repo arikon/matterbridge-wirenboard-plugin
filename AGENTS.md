@@ -10,7 +10,7 @@ This file provides guidance to AI Agents when working with code in this reposito
 # Setup dev environment (required after clone or matterbridge update)
 npm ci --no-fund --no-audit
 npm run dev:link          # npm link matterbridge — нужен установленный глобально/рядом пакет matterbridge (см. README)
-npm run build             # compile TypeScript → dist/
+npm run build             # compile TypeScript → dist/; regenerate matterbridge-wirenboard-plugin.schema.json ($defs.matterDeviceTypeEnum.enum from CONTROL_MAPPINGS)
 
 # Development
 npm run watch             # tsc --watch

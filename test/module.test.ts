@@ -551,6 +551,135 @@ describe("onStart", () => {
     expect(mockFns.registerDevice).toHaveBeenCalled();
   });
 
+  it("registers writable switch as onOffOutlet without deviceOverrides (control grouping)", async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({
+        discoveryTimeout: 1,
+        discoveryIdleMs: 5,
+        groupingMode: "control",
+      }),
+    );
+    emitMqttEvent("device-meta", {
+      deviceName: "wb-mr6c_28",
+      meta: { driver: "wb-mr6c", title: "WB-MR6C" },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "wb-mr6c_28",
+      controlName: "K1",
+      meta: { type: "switch", readonly: false },
+    });
+    await platform.onStart("test");
+    const ep = mockFns.registerDevice.mock.calls[0][0] as {
+      deviceType?: { name?: string };
+    };
+    expect(ep.deviceType?.name).toBe("onOffOutlet");
+  });
+
+  it("applies deviceOverrides string deviceType onOffLight for switch (control grouping)", async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({
+        discoveryTimeout: 1,
+        discoveryIdleMs: 5,
+        groupingMode: "control",
+        deviceOverrides: {
+          "wb-mr6c_28": {
+            controls: {
+              K1: { deviceType: "onOffLight" },
+            },
+          },
+        },
+      }),
+    );
+    emitMqttEvent("device-meta", {
+      deviceName: "wb-mr6c_28",
+      meta: { driver: "wb-mr6c", title: "WB-MR6C" },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "wb-mr6c_28",
+      controlName: "K1",
+      meta: { type: "switch", readonly: false },
+    });
+    await platform.onStart("test");
+    const ep = mockFns.registerDevice.mock.calls[0][0] as {
+      deviceType?: { name?: string };
+    };
+    expect(ep.deviceType?.name).toBe("onOffLight");
+  });
+
+  it("uses deviceOverrides nested name for setSelectDevice title", async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({
+        discoveryTimeout: 1,
+        discoveryIdleMs: 5,
+        deviceOverrides: {
+          "wb-mr6c_28": {
+            name: "Lighting Panel",
+            controls: {
+              K1: { deviceType: "onOffLight" },
+            },
+          },
+        },
+      }),
+    );
+    emitMqttEvent("device-meta", {
+      deviceName: "wb-mr6c_28",
+      meta: { driver: "wb-mr6c", title: "WB-MR6C" },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "wb-mr6c_28",
+      controlName: "K1",
+      meta: { type: "switch", readonly: false },
+    });
+    await platform.onStart("test");
+    expect(mockFns.setSelectDevice).toHaveBeenCalledWith(
+      "wb-mr6c_28",
+      "Lighting Panel",
+    );
+  });
+
+  it("does not log unmappable warning for controls skipped in deviceOverrides", async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({
+        discoveryTimeout: 1,
+        discoveryIdleMs: 5,
+        deviceOverrides: {
+          "wb-mixed_1": {
+            controls: {
+              SomeText: { skip: true },
+            },
+          },
+        },
+      }),
+    );
+    emitMqttEvent("device-meta", {
+      deviceName: "wb-mixed_1",
+      meta: { driver: "wb-test", title: "Mixed" },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "wb-mixed_1",
+      controlName: "K1",
+      meta: { type: "switch", readonly: false },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "wb-mixed_1",
+      controlName: "SomeText",
+      meta: { type: "text", readonly: true },
+    });
+    await platform.onStart("test");
+    expect(mockFns.registerDevice).toHaveBeenCalled();
+    expect(mockLog.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("wb-mixed_1/SomeText"),
+    );
+  });
+
   it("does not register when validateDevice returns false", async () => {
     mockFns.validateDevice.mockReturnValue(false);
     const platform = new WirenboardPlatform(

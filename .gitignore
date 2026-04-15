@@ -2,6 +2,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 .cache/
-.omc/
+# OMC / local IDE session payloads
+**/.omc/
 coverage/
 npm-shrinkwrap.json

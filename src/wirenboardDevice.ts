@@ -323,6 +323,8 @@ export class WirenboardDevice {
    * @param includeHidden - whether to include controls with meta.hidden = true
    * @param ignoreSystemPrefixedDevices - when true (default), unmappable controls on `system__*` devices log at debug only
    * @param deviceOverrides - per-control device type overrides from config
+   * @param skippedControlsFromConfig - control names with `skip: true` in deviceOverrides (no endpoints, no unmappable logs)
+   * @param displayNameOverride - optional Matterbridge display name from deviceOverrides.name
    */
   static create(
     log: AnsiLogger,
@@ -333,9 +335,15 @@ export class WirenboardDevice {
     includeHidden = false,
     ignoreSystemPrefixedDevices = true,
     deviceOverrides?: DeviceOverrides,
+    skippedControlsFromConfig?: ReadonlySet<string>,
+    displayNameOverride?: string,
   ): WirenboardDevice {
     const self = new WirenboardDevice(log, mqtt, wbDevice);
-    const deviceTitle = resolveTitle(wbDevice.meta.title, wbDevice.name);
+    const trimmedOverride = displayNameOverride?.trim();
+    const deviceTitle =
+      trimmedOverride && trimmedOverride.length > 0
+        ? trimmedOverride
+        : resolveTitle(wbDevice.meta.title, wbDevice.name);
     const deviceName = wbDevice.name;
     const isSystemControllerDevice = deviceName === WB_SYSTEM_DEVICE_ID;
 
@@ -839,6 +847,7 @@ export class WirenboardDevice {
 
     for (const ctrl of sortedControlsByCanonicalName(wbDevice.controls)) {
       if (skippedControlNames.has(ctrl.name)) continue;
+      if (skippedControlsFromConfig?.has(ctrl.name)) continue;
       if (!includeHidden && ctrl.meta.hidden === true) continue;
       if (isInternalDiagnostic(ctrl.name) && !includeHidden) continue;
 

@@ -4,8 +4,10 @@
  * @file controlMapping.ts
  */
 
+import * as Matterbridge from "matterbridge";
 import {
   airQualitySensor,
+  colorTemperatureLight,
   contactSensor,
   coverDevice,
   DeviceTypeDefinition,
@@ -19,6 +21,7 @@ import {
   humiditySensor,
   lightSensor,
   occupancySensor,
+  onOffLight,
   onOffOutlet,
   pressureSensor,
   pumpDevice,
@@ -401,6 +404,22 @@ export const CONTROL_MAPPINGS: WbToMatterMapping[] = [
   {
     wbType: "switch",
     matterDeviceType: onOffOutlet,
+    matterClusterIds: [OnOff.Cluster.id],
+    matterAttribute: "onOff",
+    converter: (v) => v === "1",
+    reverseConverter: (v) => (v ? "1" : "0"),
+  },
+  {
+    wbType: "switch",
+    matterDeviceType: onOffLight,
+    matterClusterIds: [OnOff.Cluster.id],
+    matterAttribute: "onOff",
+    converter: (v) => v === "1",
+    reverseConverter: (v) => (v ? "1" : "0"),
+  },
+  {
+    wbType: "switch",
+    matterDeviceType: colorTemperatureLight,
     matterClusterIds: [OnOff.Cluster.id],
     matterAttribute: "onOff",
     converter: (v) => v === "1",
@@ -999,6 +1018,43 @@ export const CONTROL_MAPPINGS: WbToMatterMapping[] = [
     reverseConverter: (v) => String((v as number) / 10),
   },
 ];
+
+/**
+ * JSON `deviceType` uses matterbridge **export** names (`onOffOutlet`, …), not
+ * `DeviceTypeDefinition.name` (`MA-onoffpluginunit`, …). Registry = exports whose
+ * values appear in {@link CONTROL_MAPPINGS}, so {@link findMapping} Pass 0 can match overrides.
+ */
+function collectMatterDeviceTypesByName(
+  mappings: readonly WbToMatterMapping[],
+): Record<string, DeviceTypeDefinition> {
+  const unique = new Set<DeviceTypeDefinition>();
+  for (const { matterDeviceType } of mappings) {
+    unique.add(matterDeviceType);
+  }
+
+  const byName: Record<string, DeviceTypeDefinition> = {};
+  for (const [exportName, value] of Object.entries(Matterbridge)) {
+    if (!unique.has(value as DeviceTypeDefinition)) continue;
+    const dt = value as DeviceTypeDefinition;
+    if (typeof dt !== "object" || dt === null) continue;
+    if (typeof (dt as { code?: unknown }).code !== "number") continue;
+    byName[exportName] = dt;
+  }
+
+  for (const dt of unique) {
+    if (!Object.values(byName).some((v) => v === dt)) {
+      throw new Error(
+        `MATTER_DEVICE_TYPE_BY_NAME: no named matterbridge export for a DeviceTypeDefinition used in CONTROL_MAPPINGS (device type name: ${String(dt.name)})`,
+      );
+    }
+  }
+
+  return byName;
+}
+
+/** Maps JSON `deviceType` string → `DeviceTypeDefinition` (types present in {@link CONTROL_MAPPINGS} only). */
+export const MATTER_DEVICE_TYPE_BY_NAME =
+  collectMatterDeviceTypesByName(CONTROL_MAPPINGS);
 
 // ---------------------------------------------------------------------------
 // findMapping
