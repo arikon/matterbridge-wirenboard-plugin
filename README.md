@@ -343,6 +343,8 @@ npm run watch        # watch mode
 npm run cleanBuild   # clean + build
 ```
 
+During startup, **SIGINT** / **SIGTERM** aborts further device registration (and stops MQTT) so the service does not stay blocked until every Matter endpoint is created. A single long `registerDevice` call may still run until Matterbridge finishes that call.
+
 ### Tests
 
 ```bash

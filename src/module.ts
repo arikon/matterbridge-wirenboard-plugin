@@ -15,7 +15,7 @@ import {
 } from "matterbridge";
 import { AnsiLogger } from "matterbridge/logger";
 import { ColorControl } from "matterbridge/matter/clusters";
-import { waiter } from "matterbridge/utils";
+import { waiter as matterbridgeWaiter } from "matterbridge/utils";
 
 import {
   compareCanonicalControlNames,
@@ -124,6 +124,12 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
   public shouldStart = false;
   public shouldConfigure = false;
 
+  /**
+   * Set on SIGINT/SIGTERM while {@link onStart} runs so discovery/registration loops exit early.
+   * Otherwise shutdown waits until all Matter endpoints are registered.
+   */
+  private startupAbortRequested = false;
+
   constructor(
     matterbridge: PlatformMatterbridge,
     log: AnsiLogger,
@@ -187,6 +193,65 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     this.mqtt.start().catch((err: Error) => {
       this.log.error(`MQTT start failed: ${err.message}`);
     });
+
+    this.attachStartupAbortHandlers();
+  }
+
+  /**
+   * SIGINT/SIGTERM during long onStart (waiters + registerDevice) so Matterbridge can finish startup and run shutdown.
+   */
+  private attachStartupAbortHandlers(): void {
+    if (
+      typeof process === "undefined" ||
+      typeof process.on !== "function" ||
+      process.env.NODE_ENV === "test"
+    ) {
+      return;
+    }
+    const onSignal = (): void => {
+      this.startupAbortRequested = true;
+      void this.mqtt.stop().catch(() => undefined);
+      this.log.warn(
+        "Shutdown signal during startup: aborting further device registration (MQTT stopped)",
+      );
+    };
+    process.on("SIGINT", onSignal);
+    process.on("SIGTERM", onSignal);
+  }
+
+  /**
+   * Like matterbridge `waiter`, but respects {@link startupAbortRequested} each interval.
+   * In Jest (`NODE_ENV=test`) delegates to `matterbridge/utils` waiter (mocked for fast tests).
+   */
+  private async waitForStartupCondition(
+    name: string,
+    check: () => boolean,
+    maxTimeoutMs: number,
+    intervalMs: number,
+  ): Promise<boolean> {
+    if (process.env.NODE_ENV === "test") {
+      return matterbridgeWaiter(
+        name,
+        check,
+        false,
+        maxTimeoutMs,
+        intervalMs,
+        false,
+      );
+    }
+    if (check()) return true;
+    const deadline = Date.now() + maxTimeoutMs;
+    while (Date.now() < deadline) {
+      if (this.startupAbortRequested) {
+        this.log.warn(`Startup wait "${name}" aborted (shutdown requested)`);
+        return false;
+      }
+      if (check()) return true;
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, intervalMs);
+      });
+    }
+    return false;
   }
 
   // ---------------------------------------------------------------------------
@@ -212,13 +277,11 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       // Static mode: wait for each named device to appear in deviceMap
       const deviceNames = this.config["devices"] as string[];
       for (const deviceName of deviceNames) {
-        const ok = await waiter(
+        const ok = await this.waitForStartupCondition(
           `device ${deviceName}`,
           () => this.deviceMap.has(deviceName),
-          false,
           maxTimeout,
           500,
-          false,
         );
         if (!ok) {
           this.log.warn(
@@ -231,15 +294,13 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       const idleMs =
         (this.config["discoveryIdleMs"] as number | undefined) ?? 1000;
 
-      const ok = await waiter(
+      const ok = await this.waitForStartupCondition(
         "WB discovery",
         () =>
           this.deviceMap.size > 0 &&
           Date.now() - this.lastMetaTimestamp > idleMs,
-        false,
         maxTimeout,
         200,
-        false,
       );
 
       if (!ok) {
@@ -303,6 +364,7 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
   }
 
   override async onShutdown(reason?: string): Promise<void> {
+    this.startupAbortRequested = true;
     await super.onShutdown(reason);
     await this.mqtt.stop();
     this.log.info(`onShutdown called: ${reason ?? "none"}`);
@@ -323,15 +385,19 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       failsafeCount > 0 &&
       this.deviceMap.size < failsafeCount
     ) {
-      const ok = await waiter(
+      const ok = await this.waitForStartupCondition(
         "failsafe",
         () => this.deviceMap.size >= failsafeCount,
-        false,
         60000,
         1000,
-        false,
       );
       if (!ok) {
+        if (this.startupAbortRequested) {
+          this.log.warn(
+            "Failsafe wait ended due to startup abort — not throwing failsafe error",
+          );
+          return;
+        }
         throw new Error(
           `Failsafe: only ${this.deviceMap.size} devices found, failsafeCount=${failsafeCount}`,
         );
@@ -356,6 +422,12 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       compareCanonicalControlNames,
     );
     for (const name of deviceNames) {
+      if (this.startupAbortRequested) {
+        this.log.warn(
+          "Device registration stopped early (shutdown requested during startup)",
+        );
+        break;
+      }
       const wbDevice = this.deviceMap.get(name);
       if (!wbDevice) continue;
       await this.registerWbDevice(
@@ -366,6 +438,9 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
         ignoreNetworkPrefixedDevices,
         deviceOverridesConfig,
       );
+      await new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
     }
   }
 
@@ -395,6 +470,10 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
           `Skipping Matter registration for Wirenboard device ${wbDevice.name} (ignoreNetworkPrefixedDevices)`,
         );
       }
+      return;
+    }
+
+    if (this.startupAbortRequested) {
       return;
     }
 
@@ -446,6 +525,10 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     // Validate whitelist/blacklist
     if (!this.validateDevice([deviceTitle, serial])) return;
 
+    if (this.startupAbortRequested) {
+      return;
+    }
+
     // Create WirenboardDevice (builds all endpoints)
     let wbDev: WirenboardDevice;
     try {
@@ -494,6 +577,12 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
 
     // Register all endpoints
     for (const endpoint of wbDev.endpoints) {
+      if (this.startupAbortRequested) {
+        this.log.warn(
+          `Stopped registering endpoints for ${wbDevice.name} (shutdown requested)`,
+        );
+        return;
+      }
       endpoint.configUrl = resolvedConfigUrl;
       await endpoint.addFixedLabel("composed", dominantType);
 

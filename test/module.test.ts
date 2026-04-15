@@ -327,6 +327,7 @@ jest.unstable_mockModule("../src/wirenboardMqtt.js", () => ({
 // ---------------------------------------------------------------------------
 
 const { WirenboardPlatform } = await import("../src/module.js");
+const matterbridgeUtils = await import("matterbridge/utils");
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -367,6 +368,15 @@ function makeConfig(overrides: Record<string, unknown> = {}): PlatformConfig {
 beforeEach(() => {
   jest.clearAllMocks();
   mqttListeners.clear();
+  jest
+    .mocked(matterbridgeUtils.waiter)
+    .mockImplementation(async (_name: unknown, condition: () => boolean) => {
+      for (let i = 0; i < 10; i++) {
+        if (condition()) return true;
+        await new Promise((resolve) => setTimeout(resolve, 1));
+      }
+      return false;
+    });
   mockFns.registerDevice.mockResolvedValue(undefined);
   mockFns.unregisterAllDevices.mockResolvedValue(undefined);
   mockFns.clearSelect.mockResolvedValue(undefined);
@@ -1467,6 +1477,43 @@ describe("onStart — failsafeCount", () => {
     });
 
     await expect(platform.onStart("test")).rejects.toThrow("Failsafe");
+  });
+
+  it("does not throw failsafe error when failsafe wait ends with startup abort flag", async () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig({ discoveryTimeout: 1, failsafeCount: 5 }),
+    );
+
+    jest
+      .mocked(matterbridgeUtils.waiter)
+      .mockImplementation(async (name: unknown, condition: () => boolean) => {
+        if (name === "failsafe") {
+          (
+            platform as unknown as { startupAbortRequested: boolean }
+          ).startupAbortRequested = true;
+          return false;
+        }
+        for (let i = 0; i < 10; i++) {
+          if (condition()) return true;
+          await new Promise((resolve) => setTimeout(resolve, 1));
+        }
+        return false;
+      });
+
+    emitMqttEvent("device-meta", {
+      deviceName: "wb-only-one",
+      meta: { driver: "test", title: "One" },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "wb-only-one",
+      controlName: "K1",
+      meta: { type: "switch", readonly: false },
+    });
+
+    await expect(platform.onStart("test")).resolves.toBeUndefined();
+    expect(mockFns.registerDevice).not.toHaveBeenCalled();
   });
 });
 
