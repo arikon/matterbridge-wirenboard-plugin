@@ -42,7 +42,7 @@ import {
   WirenboardMqtt,
   WirenboardMqttConfig,
 } from "./wirenboardMqtt.js";
-import { WbDevice } from "./wirenboardTypes.js";
+import { WbControlMeta, WbDevice } from "./wirenboardTypes.js";
 
 /** WB device ids for network-related drivers often start with this prefix (e.g. `networks`). */
 function isNetworkPrefixedDevice(deviceName: string): boolean {
@@ -598,13 +598,17 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
 
     const existing = device.controls.get(evt.controlName);
     if (existing) {
-      // Check if type changed after registration — may need endpoint recreation
-      const typeChanged = existing.meta.type !== evt.meta.type;
-      existing.meta = evt.meta;
+      // Merge: Wirenboard may publish full JSON on .../meta first, then retained
+      // .../meta/type (legacy) emits a partial object without units — replacing
+      // the whole meta would drop units and break value-channel mapping.
+      const prevType = existing.meta.type;
+      const merged: WbControlMeta = { ...existing.meta, ...evt.meta };
+      const typeChanged = prevType !== merged.type;
+      existing.meta = merged;
 
       if (typeChanged && this.shouldStart) {
         this.log.warn(
-          `Control type changed for ${evt.deviceName}/${evt.controlName}: was '${existing.meta.type}', now '${evt.meta.type}'. Endpoint recreation not yet implemented.`,
+          `Control type changed for ${evt.deviceName}/${evt.controlName}: was '${prevType}', now '${merged.type}'. Endpoint recreation not yet implemented.`,
         );
       }
     } else {

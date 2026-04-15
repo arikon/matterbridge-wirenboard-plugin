@@ -433,6 +433,38 @@ describe("Device discovery", () => {
     expect(mockLog.error).not.toHaveBeenCalled();
   });
 
+  it("merges control-meta so a later partial update does not strip units", () => {
+    const platform = new WirenboardPlatform(
+      mockMatterbridge,
+      mockLog,
+      makeConfig(),
+    );
+    emitMqttEvent("device-meta", {
+      deviceName: "wb-map12e_40",
+      meta: { driver: "map12e", title: { en: "MAP" } },
+    });
+    emitMqttEvent("control-meta", {
+      deviceName: "wb-map12e_40",
+      controlName: "Ch 1 N L1",
+      meta: {
+        type: "value",
+        units: "var",
+        readonly: true,
+        precision: 0.01,
+      },
+    });
+    // Same order as MQTT: full JSON on .../meta, then legacy .../meta/type (partial)
+    emitMqttEvent("control-meta", {
+      deviceName: "wb-map12e_40",
+      controlName: "Ch 1 N L1",
+      meta: { type: "value", readonly: true },
+    });
+    const ctrl = platform.deviceMap
+      .get("wb-map12e_40")
+      ?.controls.get("Ch 1 N L1");
+    expect(ctrl?.meta.units).toBe("var");
+  });
+
   it("creates placeholder device on control-meta before device-meta", () => {
     const _p = new WirenboardPlatform(mockMatterbridge, mockLog, makeConfig());
     emitMqttEvent("control-meta", {
