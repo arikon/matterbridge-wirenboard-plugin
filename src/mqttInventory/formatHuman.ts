@@ -15,12 +15,24 @@ export interface HumanReportAnnotationContext {
   ignoreNetworkPrefixedDevices: boolean;
 }
 
+/** Longest control `name` length in the device (for column alignment). */
+function maxControlNameWidth(
+  controls: InventoryJsonReport["devices"][0]["controls"],
+): number {
+  let w = 0;
+  for (const c of controls) {
+    if (c.name.length > w) w = c.name.length;
+  }
+  return w;
+}
+
 /**
  *
  */
 function controlLine(
   c: InventoryJsonReport["devices"][0]["controls"][0],
   useColor: boolean,
+  nameColumnWidth: number,
 ): string {
   const parts: string[] = [];
   parts.push(
@@ -35,7 +47,8 @@ function controlLine(
   if (c.hiddenExcludedByConfig) {
     extra = "  (hidden in WB; not bridged while includeHidden=false)";
   }
-  let line = `  - ${c.name}  ${parts.join(" ")}`;
+  const nameCol = c.name.padEnd(nameColumnWidth, " ");
+  let line = `  - ${nameCol}  ${parts.join(" ")}`;
   if (c.typeOverride) line += `  override=${c.typeOverride}`;
   line += `${extra}\n`;
   return line;
@@ -73,13 +86,35 @@ function staticDevicesNote(
     : "discoveryMode static: id is not in devices[]";
 }
 
+/** Unicode multiplication sign (×), not ASCII "x". */
+const MUL = "\u00D7";
+
 /**
- *
+ * Per-device control counts: `N total · M × [ mappable ] · U × [unmappable]` (pair same width; shorter label centered).
  */
+function formatControlCountsLine(
+  total: number,
+  mappableN: number,
+  unmappableN: number,
+  useColor: boolean,
+): string {
+  return `  controls: ${total} total · ${mappableN} ${MUL} ${formatBadge("mappable", "mappable", useColor)} · ${unmappableN} ${MUL} ${formatBadge("unmappable", "unmappable", useColor)}\n`;
+}
+
+/** Writes Legend block (badges + matter / MQTT notes). */
 function printLegend(useColor: boolean, write: (s: string) => void): void {
   write("Legend:\n");
   write(
     `  ${formatBadge("mappable", "mappable", useColor)} / ${formatBadge("unmappable", "unmappable", useColor)} — Matter mapping for this control after overrides & hidden rules\n`,
+  );
+  write(
+    `  ${formatBadge("skip", "skip", useColor)} — control excluded from Matter mapping (deviceOverrides skip)\n`,
+  );
+  write(
+    `  ${formatBadge("override", "override", useColor)} — type override from config; control line may include override=<type>\n`,
+  );
+  write(
+    `  ${formatBadge("hidden", "hidden", useColor)} — hidden in Wiren Board; a suffix explains when includeHidden=false skips bridging\n`,
   );
   write(
     "  matter: — whether the device would be registered as a bridged device (prefix / lists / mappable count)\n",
@@ -147,9 +182,7 @@ export function printHumanReport(
 
     write(`── ${d.id} ──\n`);
     write(`  title: ${d.titleForValidation}\n`);
-    write(
-      `  controls: ${total} total · ${mappableN} mappable · ${unmappableN} unmappable\n`,
-    );
+    write(formatControlCountsLine(total, mappableN, unmappableN, useColor));
     write(`  matter: ${matterExplanation(da)}\n`);
     const staticNote = staticDevicesNote(da);
     if (staticNote) write(`  ${staticNote}\n`);
@@ -167,8 +200,9 @@ export function printHumanReport(
       continue;
     }
 
+    const nameW = maxControlNameWidth(d.controls);
     for (const c of d.controls) {
-      write(controlLine(c, useColor));
+      write(controlLine(c, useColor, nameW));
     }
     write("\n");
   }
