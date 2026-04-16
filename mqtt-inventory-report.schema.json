@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/arikon/matterbridge-wirenboard-plugin/mqtt-inventory-report.schema.json",
+  "title": "mb-wirenboard-verify-mqtt --json report",
+  "description": "Machine-readable output of serializeInventoryJson (schemaVersion 1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "configLoaded",
+    "effectiveGroupingMode",
+    "groupingTopologyHint",
+    "broker",
+    "devices"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "configLoaded": { "type": "boolean" },
+    "configPath": { "type": "string" },
+    "effectiveGroupingMode": {
+      "type": "string",
+      "enum": ["device", "control"]
+    },
+    "groupingTopologyHint": { "type": "string" },
+    "discoveryMode": { "type": "string" },
+    "broker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "host", "port"],
+      "properties": {
+        "protocol": { "type": "string" },
+        "host": { "type": "string" },
+        "port": { "type": "number" }
+      }
+    },
+    "devices": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/deviceEntry" }
+    }
+  },
+  "definitions": {
+    "deviceEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "titleForValidation", "annotations", "controls"],
+      "properties": {
+        "id": { "type": "string" },
+        "titleForValidation": { "type": "string" },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "skippedByPrefix",
+            "inStaticDevicesList",
+            "validateDevicePasses",
+            "hasMappableEarly",
+            "exposureHint"
+          ],
+          "properties": {
+            "skippedByPrefix": {
+              "type": ["string", "null"],
+              "enum": ["system", "network", null]
+            },
+            "inStaticDevicesList": { "type": ["boolean", "null"] },
+            "validateDevicePasses": { "type": "boolean" },
+            "hasMappableEarly": { "type": "boolean" },
+            "exposureHint": { "type": "string" }
+          }
+        },
+        "controls": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/controlEntry" }
+        }
+      }
+    },
+    "controlEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "mappable",
+        "skippedByOverride",
+        "typeOverride",
+        "hidden",
+        "hiddenExcludedByConfig"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "mappable": { "type": "boolean" },
+        "skippedByOverride": { "type": "boolean" },
+        "typeOverride": { "type": ["string", "null"] },
+        "hidden": { "type": "boolean" },
+        "hiddenExcludedByConfig": { "type": "boolean" }
+      }
+    }
+  }
+}

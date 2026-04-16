@@ -8,6 +8,9 @@
   "type": "module",
   "main": "dist/module.js",
   "types": "dist/module.d.ts",
+  "bin": {
+    "mb-wirenboard-verify-mqtt": "./dist/mqttInventoryCliEntry.js"
+  },
   "exports": {
     ".": {
       "import": "./dist/module.js",
@@ -35,7 +38,7 @@
     "format": "prettier --cache --cache-location .cache/.prettiercache --write .",
     "format:check": "prettier --cache --cache-location .cache/.prettiercache --check .",
     "dev:link": "npm link --no-fund --no-audit matterbridge",
-    "verify:mqtt": "node scripts/real-mqtt-verify.mjs"
+    "verify:mqtt": "node dist/mqttInventoryCliEntry.js"
   },
   "dependencies": {
     "mqtt": "5.15.1",
@@ -50,6 +53,7 @@
     "@types/jest": "30.0.0",
     "@types/node": "25.6.0",
     "aedes": "1.0.2",
+    "ajv": "^8.17.1",
     "cross-env": "10.1.0",
     "eslint": "10.2.0",
     "eslint-config-prettier": "10.1.8",

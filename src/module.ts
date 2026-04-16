@@ -22,17 +22,19 @@ import {
   sortedControlsByCanonicalName,
 } from "./canonicalOrdering.js";
 import { DeviceOverrides, findMapping } from "./controlMapping.js";
-import {
-  GroupingMode,
-  isSystemDevice,
-  WirenboardDevice,
-} from "./wirenboardDevice.js";
+import { GroupingMode, WirenboardDevice } from "./wirenboardDevice.js";
 
 /** Cover endpoint may expose this helper (matterbridge mock / runtime). */
 type EndpointWithWindowCovering = MatterbridgeEndpoint & {
   setWindowCoveringTargetAsCurrentAndStopped?: () => Promise<void>;
 };
 import { normalizeDeviceOverridesEntry } from "./deviceOverrides.js";
+import {
+  appliesSystemPrefixedSkip,
+  deviceHasMappableControlEarlyCheck,
+  resolveDeviceTitleForValidation,
+  shouldSkipMatterRegistration,
+} from "./matterRegistration.js";
 import {
   ControlErrorEvent,
   ControlMetaEvent,
@@ -44,45 +46,6 @@ import {
   WirenboardMqttConfig,
 } from "./wirenboardMqtt.js";
 import { WbControlMeta, WbDevice } from "./wirenboardTypes.js";
-
-/** WB device ids for network-related drivers often start with this prefix (e.g. `networks`). */
-function isNetworkPrefixedDevice(deviceName: string): boolean {
-  return deviceName.startsWith("network");
-}
-
-/**
- *
- */
-function appliesSystemPrefixedSkip(
-  deviceName: string,
-  ignoreSystemPrefixedDevices: boolean,
-): boolean {
-  return ignoreSystemPrefixedDevices && isSystemDevice(deviceName);
-}
-
-/**
- *
- */
-function appliesNetworkPrefixedSkip(
-  deviceName: string,
-  ignoreNetworkPrefixedDevices: boolean,
-): boolean {
-  return ignoreNetworkPrefixedDevices && isNetworkPrefixedDevice(deviceName);
-}
-
-/** Pure predicate: whether this WB device must not be registered as Matter (prefix rules only). */
-function shouldSkipMatterRegistration(
-  deviceName: string,
-  opts: {
-    ignoreSystemPrefixedDevices: boolean;
-    ignoreNetworkPrefixedDevices: boolean;
-  },
-): boolean {
-  return (
-    appliesSystemPrefixedSkip(deviceName, opts.ignoreSystemPrefixedDevices) ||
-    appliesNetworkPrefixedSkip(deviceName, opts.ignoreNetworkPrefixedDevices)
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Plugin entry point
@@ -484,11 +447,11 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
     const skippedFromConfig = normalizedOv?.skippedControls;
     const typeOverrides = normalizedOv?.typeOverrides;
 
-    // Check if at least one control has a mapping (after skips and type overrides)
-    const hasMappable = [...wbDevice.controls.values()].some((ctrl) => {
-      if (skippedFromConfig?.has(ctrl.name)) return false;
-      return findMapping(ctrl.meta, ctrl.name, typeOverrides) !== undefined;
-    });
+    const hasMappable = deviceHasMappableControlEarlyCheck(
+      wbDevice,
+      typeOverrides,
+      skippedFromConfig,
+    );
     if (!hasMappable) {
       this.log.info(
         `No mappable controls for device ${wbDevice.name} — skipping`,
@@ -496,11 +459,7 @@ export class WirenboardPlatform extends MatterbridgeDynamicPlatform {
       return;
     }
 
-    const baseTitle =
-      typeof wbDevice.meta.title === "string"
-        ? wbDevice.meta.title || wbDevice.name
-        : wbDevice.meta.title.en || wbDevice.name;
-    const deviceTitle = normalizedOv?.displayName ?? baseTitle;
+    const deviceTitle = resolveDeviceTitleForValidation(wbDevice, normalizedOv);
 
     const serial = wbDevice.name;
 

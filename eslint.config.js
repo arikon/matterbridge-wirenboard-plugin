@@ -127,6 +127,13 @@ export default defineConfig([
     },
   },
   {
+    name: "npm bin CLI (shebang line 1 → dist; eslint-plugin-n only maps package.bin to dist/)",
+    files: ["**/src/mqttInventoryCliEntry.ts"],
+    rules: {
+      "n/hashbang": "off",
+    },
+  },
+  {
     name: "Jest Test Files",
     files: ["**/*.spec.ts", "**/*.test.ts", "**/__test__/**/*.ts"],
     languageOptions: {

@@ -18,7 +18,7 @@ Wirenboard devices are discovered via standard WB MQTT conventions (`/devices/+/
 - Supports all standard WB control types (see [mapping table](#supported-wirenboard-control-types))
 - Two grouping modes: per-device (fewer Matter nodes) or per-control (granular)
 - White list / black list filtering
-- Static discovery mode for explicit device lists
+- Static discovery mode: wait at startup until each id in `devices` appears in MQTT discovery (see [Static discovery](#static-discovery))
 - TLS support: `mqtts`, `wss`, mutual TLS, self-signed certificates
 - Device overrides: rename, retype, or skip individual controls
 - Composite thermostat detection (setpoint + temperature + mode)
@@ -81,14 +81,14 @@ Configuration is stored in `~/.matterbridge/matterbridge-wirenboard-plugin.confi
 | `mqttCaPath`                   | string   | `""`          | Path to CA certificate (PEM) for TLS                                                                                                                                                                                                                                                                    |
 | `mqttCertPath`                 | string   | `""`          | Path to client certificate (PEM) for mutual TLS                                                                                                                                                                                                                                                         |
 | `mqttKeyPath`                  | string   | `""`          | Path to client private key (PEM) for mutual TLS                                                                                                                                                                                                                                                         |
-| `discoveryMode`                | string   | `"auto"`      | `auto` — subscribe and discover; `static` — use `devices` list only                                                                                                                                                                                                                                     |
+| `discoveryMode`                | string   | `"auto"`      | `auto` — idle-based discovery complete; `static` — wait until each id in `devices` appears (startup only; see [Static discovery](#static-discovery))                                                                                                                                                    |
 | `discoveryTimeout`             | number   | `30`          | Max seconds to wait for discovery (auto mode)                                                                                                                                                                                                                                                           |
 | `discoveryIdleMs`              | number   | `1000`        | Idle time (ms) on meta-topics before discovery is considered complete                                                                                                                                                                                                                                   |
 | `groupingMode`                 | string   | `"device"`    | `device` — one Matter node per WB device; `control` — one Matter node per control                                                                                                                                                                                                                       |
 | `includeHidden`                | boolean  | `false`       | Include controls marked hidden in WB meta                                                                                                                                                                                                                                                               |
 | `ignoreSystemPrefixedDevices`  | boolean  | `true`        | When `true`, **does not bridge** Wirenboard service devices whose id starts with `system__` (e.g. `system__networks__…`), and unmappable controls on those devices (if bridged) log at **debug** only. Set `false` to expose `system__*` in Matter and use **warn** for unmappable-control skips there. |
 | `ignoreNetworkPrefixedDevices` | boolean  | `true`        | When `true`, **does not bridge** devices whose id starts with `network` (e.g. `networks`, `networks_…`). Independent of `ignoreSystemPrefixedDevices`. Set `false` to bridge them.                                                                                                                      |
-| `devices`                      | string[] | `[]`          | Device IDs to expose in `static` discovery mode                                                                                                                                                                                                                                                         |
+| `devices`                      | string[] | `[]`          | Device ids required at startup when `discoveryMode` is `static` (not a registration filter; see [Static discovery](#static-discovery))                                                                                                                                                                  |
 | `whiteList`                    | string[] | `[]`          | Only expose listed devices (empty = all)                                                                                                                                                                                                                                                                |
 | `blackList`                    | string[] | `[]`          | Never expose listed devices                                                                                                                                                                                                                                                                             |
 | `deviceOverrides`              | object   | `{}`          | Per-device overrides (see [Advanced](#advanced))                                                                                                                                                                                                                                                        |
@@ -311,7 +311,11 @@ This path is automatic — `deviceOverrides` cannot turn a single control into a
 
 ### Static discovery
 
-Use `discoveryMode: "static"` to expose only a fixed list of devices, bypassing MQTT meta-topic subscription:
+With `discoveryMode: "static"` and a non-empty `devices` array, **startup** waits (up to `discoveryTimeout`) for **each** listed Wiren Board device id to show up in retained MQTT discovery — instead of using the idle-based “discovery complete” condition from `discoveryIdleMs`.
+
+**Registration is unchanged:** `registerDiscoveredDevices` still iterates **every** device present in the in-memory map (everything the broker retained on `/devices/+/meta`). The `devices` list is **not** a filter that hides other devices from Matter. Use **`whiteList`** / **`blackList`** if you need to restrict what gets bridged.
+
+For a checklist of ids you care about before bridging starts, combine **`static` + `devices`** with the [**MQTT inventory CLI**](#mqtt-inventory-cli-mb-wirenboard-verify-mqtt) (it annotates whether an id is in `devices` when `discoveryMode` is `static`).
 
 ```json
 {
@@ -329,6 +333,56 @@ Use `discoveryMode: "static"` to expose only a fixed list of devices, bypassing 
   "mqttCaPath": "/etc/ssl/certs/my-ca.pem",
   "mqttCertPath": "/etc/ssl/certs/client.pem",
   "mqttKeyPath": "/etc/ssl/private/client.key"
+}
+```
+
+### MQTT inventory CLI (`mb-wirenboard-verify-mqtt`)
+
+Compiled from this package as `dist/mqttInventoryCliEntry.js` (thin entry; core logic in `mqttInventoryCli.js`). It connects to the same MQTT broker fields as the plugin (`mqttHost`, `mqttPort`, TLS paths, …), walks `/devices/#` like the platform, and prints **human** or **`--json`** output with **annotations**: how `whiteList` / `blackList`, `deviceOverrides`, `includeHidden`, prefix skips, `discoveryMode` + `devices`, and **`groupingMode`** would affect Matter exposure — using the **same helpers** as `WirenboardPlatform` / `WirenboardDevice` (not a second implementation).
+
+**Run (after `npm run build`):**
+
+```bash
+npm run verify:mqtt -- --help
+node dist/mqttInventoryCliEntry.js --json
+```
+
+When the package is installed with a global or local `node_modules/.bin`, the **`mb-wirenboard-verify-mqtt`** binary points at the same file.
+
+**Config file resolution (plugin JSON shape, same filename as Matterbridge):**
+
+1. `--config <path>` if given
+2. `MATTERBRIDGE_WIRENBOARD_PLUGIN_CONFIG` if set
+3. First existing readable file among: `/root/.matterbridge/matterbridge-wirenboard-plugin.config.json`, then `$HOME/.matterbridge/matterbridge-wirenboard-plugin.config.json`
+
+**MQTT overrides** for a single run (highest precedence first): CLI flags → `WB_MQTT_*` env (table in [`AGENTS.md`](AGENTS.md)) → values from JSON → defaults.
+
+**Output:** `--json` writes a single JSON object to stdout (no ANSI). Otherwise, text mode prints a short **Legend**, effective **annotation flags** (`includeHidden`, prefix-ignore toggles), then **per device**: separator line `── id ──`, human-readable **title**, **control counts** (total / mappable / unmappable), a single plain-English **matter:** line (registration outcome), optional **static `devices[]`** note, a **note** when prefix-skip still lists mappable controls (inventory vs Matter), then control rows with badges. It uses **ANSI background badges** for categories (256-color palette), unless stdout is not a TTY, **`NO_COLOR`** is set, or **`--no-color`** is passed — then badges render as plain `[label]` brackets. Mapping: **hidden** (purple-gray), **override** (green), **skip** (orange), **blacklist** / **whitelist** (reds / greens), **prefix** (purple), **static** (blue), **mappable** / **unmappable** (green / gray).
+
+**Annotation scope:** the CLI explains bridge-relevant options (MQTT connection, lists, overrides, hidden, discovery, **`groupingMode`**). It does **not** diagnose unrelated knobs such as `failsafeCount`, `discoveryTimeout` timing semantics beyond what is printed, `unregisterOnShutdown`, or `wirenboardUrl` — treat those as out of scope for inventory output.
+
+Authoring workflow: edit `~/.matterbridge/matterbridge-wirenboard-plugin.config.json`, run the CLI against it (`--config` or default paths), adjust `whiteList` / `deviceOverrides` / etc. using real **device ids** (`── … ──` in human output or `devices[].id` in `--json`) and **control names** from the report. Valid **`deviceType`** strings for overrides are the same enum **`matterbridge-wirenboard-plugin.schema.json`** regenerates on **`npm run build`** (`$defs.matterDeviceTypeEnum`).
+
+Minimal fragments (merge into your plugin JSON alongside `mqttHost` and other keys):
+
+```json
+{
+  "whiteList": ["wb-mr6c_28", "wb-msw-v3_42"],
+  "blackList": ["wb-hwmon_0"]
+}
+```
+
+```json
+{
+  "deviceOverrides": {
+    "wb-mr6c_28": {
+      "name": "Hall relays",
+      "controls": {
+        "Relay 1": { "deviceType": "onOffLight" },
+        "Temperature": { "skip": true }
+      }
+    }
+  }
 }
 ```
 

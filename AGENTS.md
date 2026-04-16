@@ -25,12 +25,36 @@ npm run test:typecheck    # type-check test files without emit
 # Run a single test file
 npm test -- test/controlMapping.test.ts
 
-# Live MQTT smoke (build first; uses WB_MQTT_* env, default host 192.168.55.15)
+# Live MQTT inventory CLI (build first). Same entrypoint as global `mb-wirenboard-verify-mqtt` → `dist/mqttInventoryCliEntry.js`.
 npm run build && npm run verify:mqtt
 
 # Lint (ESLint on the whole tree; exits non-zero if any warning — --max-warnings=0)
 npm run lint
 ```
+
+### `verify:mqtt` / `mb-wirenboard-verify-mqtt`
+
+- **Script:** `npm run verify:mqtt` runs `node dist/mqttInventoryCliEntry.js` (requires `npm run build`).
+- **Package bin:** `mb-wirenboard-verify-mqtt` → `./dist/mqttInventoryCliEntry.js` (`package.json` `bin`; fast `--help` without loading MQTT). Core logic: `mqttInventoryCli.ts`.
+- **Shared logic:** inventory reuses `validateDeviceConfig`, `matterRegistration` (prefix skips, titles, mappable early check, `describeGroupingModeTopology`), `normalizeDeviceOverridesEntry`, `findMapping`, `WirenboardMqtt`, and `mqttInventory/*` — keep annotations aligned with `module.ts` / `wirenboardDevice.ts` when changing rules.
+- **Entry / layout:** `src/mqttInventoryCliEntry.ts` (thin bootstrap); `src/mqttInventoryCli.ts` (argv, MQTT merge, inventory loop); human text in `src/mqttInventory/formatHuman.ts`; JSON in `formatJson.ts`; annotations in `annotate.ts`; merge rules in `mqttConfigMerge.ts`; config path candidates in `configPaths.ts`.
+- **Modes:** default stdout = human (Legend + per-device `matter:` line + control badges). **`--json`** = single `InventoryJsonReport` on stdout, no ANSI. **`--no-color`** / **`NO_COLOR`** / non-TTY → plain `[label]` badges.
+- **Useful flags:** `--help`, `--config <path>`, `--json`, `--no-color`, `--mqtt-host`, `--mqtt-port`, `--idle-ms`, `--max-ms` (see `--help`).
+- **Plugin config path (for annotations + MQTT defaults from JSON):** `--config` > **`MATTERBRIDGE_WIRENBOARD_PLUGIN_CONFIG`** > standard paths (`/root/.matterbridge/…`, `$HOME/.matterbridge/…`). Details: README [MQTT inventory CLI](README.md#mqtt-inventory-cli-mb-wirenboard-verify-mqtt).
+- **Regression test for human layout:** `test/formatHuman.test.ts`.
+
+**Env overrides** merged into MQTT options (see `src/mqttInventory/mqttConfigMerge.ts`; precedence under README [MQTT inventory CLI](README.md#mqtt-inventory-cli-mb-wirenboard-verify-mqtt)):
+
+| Variable                                                     | Maps to                                          |
+| ------------------------------------------------------------ | ------------------------------------------------ |
+| `WB_MQTT_HOST`                                               | `mqttHost`                                       |
+| `WB_MQTT_PORT`                                               | `mqttPort`                                       |
+| `WB_MQTT_PROTOCOL`                                           | `mqttProtocol` (`mqtt` / `mqtts` / `ws` / `wss`) |
+| `WB_MQTT_USERNAME` / `WB_MQTT_PASSWORD`                      | credentials                                      |
+| `WB_MQTT_CA_PATH` / `WB_MQTT_CERT_PATH` / `WB_MQTT_KEY_PATH` | TLS paths                                        |
+| `WB_VERIFY_IDLE_MS` / `WB_VERIFY_MAX_MS`                     | inventory settle / cap (CLI)                     |
+
+If unset, defaults follow the CLI implementation (historically the dev broker in root `AGENTS.md` / workspace rules is `192.168.55.15` for manual checks).
 
 ## Engineering principles
 
@@ -67,14 +91,15 @@ Use **`--help`** on subcommands for options. After moving or cloning, ensure the
 
 Core source files:
 
-| File                           | Role                                                                                                                                                                                                                                                                                      |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/module.ts`                | `WirenboardPlatform` — Matterbridge `DynamicPlatform` entry point. Handles lifecycle (`onStart`/`onConfigure`/`onShutdown`), MQTT event fan-out, device registration, whitelist/blacklist, `controlValueCache`, retained value replay.                                                    |
-| `src/wirenboardMqtt.ts`        | `WirenboardMqtt` — MQTT client, topic parser, `EventEmitter`. Emits typed events: `device-meta`, `control-meta`, `control-value`, `control-error`, `device-removed`, `mqtt_connect`, `mqtt_disconnect`.                                                                                   |
-| `src/wirenboardDevice.ts`      | `WirenboardDevice` — builds `MatterbridgeEndpoint` objects from `WbDevice`. Static factory `WirenboardDevice.create()`. Owns `propertyMap` for per-endpoint control routing. Implements `updateFromMqtt()` (MQTT→Matter) and command handlers (Matter→MQTT).                              |
-| `src/systemMetadataMapping.ts` | WB device id **`system`** (controller) only: maps readonly `text` controls (e.g. Short SN, Batch No) to **Bridged Device Basic Information** attributes via `extractSystemControllerMetadata()` / `applyControllerBridgedBiSnapshot()`. Other devices use legacy Serial/FW/HW hints only. |
-| `src/controlMapping.ts`        | Mapping table: WB type + units → Matter device + clusters + converters; `findMapping()`. CCT helpers. WB-MAP: extra electrical `units` (see README); `deg` → `rmsCurrent` proxy; THD `%` (name keywords) → `rmsPower` proxy.                                                              |
-| `src/wirenboardTypes.ts`       | TypeScript interfaces: `WbDevice`, `WbControl`, `WbControlMeta`, `WbDeviceMeta`, `WbControlType`.                                                                                                                                                                                         |
+| File                                                                             | Role                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/module.ts`                                                                  | `WirenboardPlatform` — Matterbridge `DynamicPlatform` entry point. Handles lifecycle (`onStart`/`onConfigure`/`onShutdown`), MQTT event fan-out, device registration, whitelist/blacklist, `controlValueCache`, retained value replay.                                                    |
+| `src/wirenboardMqtt.ts`                                                          | `WirenboardMqtt` — MQTT client, topic parser, `EventEmitter`. Emits typed events: `device-meta`, `control-meta`, `control-value`, `control-error`, `device-removed`, `mqtt_connect`, `mqtt_disconnect`.                                                                                   |
+| `src/wirenboardDevice.ts`                                                        | `WirenboardDevice` — builds `MatterbridgeEndpoint` objects from `WbDevice`. Static factory `WirenboardDevice.create()`. Owns `propertyMap` for per-endpoint control routing. Implements `updateFromMqtt()` (MQTT→Matter) and command handlers (Matter→MQTT).                              |
+| `src/systemMetadataMapping.ts`                                                   | WB device id **`system`** (controller) only: maps readonly `text` controls (e.g. Short SN, Batch No) to **Bridged Device Basic Information** attributes via `extractSystemControllerMetadata()` / `applyControllerBridgedBiSnapshot()`. Other devices use legacy Serial/FW/HW hints only. |
+| `src/controlMapping.ts`                                                          | Mapping table: WB type + units → Matter device + clusters + converters; `findMapping()`. CCT helpers. WB-MAP: extra electrical `units` (see README); `deg` → `rmsCurrent` proxy; THD `%` (name keywords) → `rmsPower` proxy.                                                              |
+| `src/wirenboardTypes.ts`                                                         | TypeScript interfaces: `WbDevice`, `WbControl`, `WbControlMeta`, `WbDeviceMeta`, `WbControlType`.                                                                                                                                                                                         |
+| `src/mqttInventoryCliEntry.ts`, `src/mqttInventoryCli.ts`, `src/mqttInventory/*` | **`mb-wirenboard-verify-mqtt`:** CLI (entry + core), plugin JSON load, MQTT inventory session, `printHumanReport` / `serializeInventoryJson`. Not loaded by Matterbridge at runtime — dev/diagnostic tool only.                                                                           |
 
 ### Key data flow
 
